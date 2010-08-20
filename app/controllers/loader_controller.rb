@@ -1,34 +1,42 @@
 ########################################################################
-# File:    loader_controler.rb                                         #
-#          Hipposoft 2008                                              #
-#                                                                      #
-# History: 04-Jan-2008 (ADH): Created.                                 #
-#          Feb 2009 (SJS): Hacked into plugin for redmine              #
+# File: loader_controler.rb # bl;a bla bla
+# Hipposoft 2008 #
+# #
+# History: 04-Jan-2008 (ADH): Created. #
+# Feb 2009 (SJS): Hacked into plugin for redmine #
 ########################################################################
 
 class TaskImport
-  @tasks      = []
+  @tasks = []
   @project_id = nil
   @new_categories = []
   
   attr_accessor( :tasks, :project_id, :new_categories )
 end
 
+
+
 class LoaderController < ApplicationController
-  
+
   unloadable
 
-  before_filter :find_project, :authorize, :only => [:new, :create]  
+  before_filter :find_project, :authorize, :only => [:new, :create]
 
   require 'zlib'
   require 'ostruct'
   require 'tempfile'
   require 'rexml/document'
-  
+  require 'builder/xmlmarkup'
+
+  # This allows to update the existing task in Redmine from MS Project
+  ActiveRecord::Base.lock_optimistically=false
+
   # Set up the import view. If there is no task data, this will consist of
   # a file entry field and nothing else. If there is parsed file data (a
   # preliminary task list), then this is included too.
-  
+
+
+
   def new
     # This can and probably SHOULD be replaced with some URL rewrite magic
     # now that the project loader is Redmine project based.
@@ -63,12 +71,12 @@ class LoaderController < ApplicationController
         byte = xmlfile.getc()
         xmlfile.rewind()
         
-        xmlfile       = Zlib::GzipReader.new( xmlfile ) if ( byte != '<'[ 0 ] )
-        xmldoc        = REXML::Document.new( xmlfile.read() )
+        xmlfile = Zlib::GzipReader.new( xmlfile ) if ( byte != '<'[ 0 ] )
+        xmldoc = REXML::Document.new( xmlfile.read() )
         @import.tasks, @import.new_categories = get_tasks_from_xml( xmldoc )
 
         if ( @import.tasks.nil? or @import.tasks.empty? )
-          flash[ :error  ] = 'No usable tasks were found in that file'
+          flash[ :error ] = 'No usable tasks were found in that file'
         else
           flash[ :notice ] = 'Tasks read successfully. Please choose items to import.'
         end
@@ -80,11 +88,11 @@ class LoaderController < ApplicationController
         # the message off at the first newline.
         
         lines = error.message.split("\n")
-        flash[ :error  ] = "Failed to read file: #{ lines[ 0 ] }"
+        flash[ :error ] = "Failed to read file: #{ lines[ 0 ] }"
       end
 
-      render( { :action => :new } )
-      flash.delete( :error  )
+      render :action => :new 
+      flash.delete( :error )
       flash.delete( :notice )
       
     else
@@ -96,7 +104,7 @@ class LoaderController < ApplicationController
       if ( tasks.nil? )
         flash[ :error ] = "Please choose a file before using the 'Analyse' button."
         render( { :action => :new } )
-        flash.delete( :error  )
+        flash.delete( :error )
         return
       end
       
@@ -109,7 +117,7 @@ class LoaderController < ApplicationController
       
       @import.tasks = []
       @import.new_categories = []
-      to_import     = []
+      to_import = []
       
       # Due to the way the form is constructed, 'task' will be a 2-element
       # array where the first element contains a string version of the index
@@ -117,22 +125,27 @@ class LoaderController < ApplicationController
       # the hash describing the task itself.
       
       tasks.each do | taskinfo |
-        index  = taskinfo[ 0 ].to_i
-        task   = taskinfo[ 1 ]
+        index = taskinfo[ 0 ].to_i
+        task = taskinfo[ 1 ]
         struct = OpenStruct.new
 
-        struct.uid = task[ :uid ]        
-        struct.title    = task[ :title    ]
-        struct.level    = task[ :level    ]
-        struct.code     = task[ :code     ]
+        struct.uid = task[ :uid ]
+        struct.title = task[ :title ]
+        struct.level = task[ :level ]
+        struct.outlinenumber = task[ :outlinenumber ]
+        struct.outnum = task[ :outnum ]        
+        struct.code = task[ :code ]
         struct.duration = task[ :duration ]
         struct.start = task[ :start ]
         struct.finish = task[ :finish ]
         struct.percentcomplete = task[ :percentcomplete ]
         struct.predecessors = task[ :predecessors ].split(', ')
+        struct.delays = task[ :delays ].split(', ')
         struct.category = task[ :category ]
         struct.assigned_to = task[ :assigned_to ]
-        
+        struct.parent_id = task[ :parent_id ]
+        struct.notes = task[:notes]
+        struct.milestone = task[:milestone]
         @import.tasks[ index ] = struct
         to_import[ index ] = struct if ( task[ :import ] == '1' )
       end
@@ -168,98 +181,279 @@ class LoaderController < ApplicationController
       # Bail out if we have errors to report.
       unless( flash[ :error ].nil? )
         render( { :action => :new } )
-        flash.delete( :error  )
+        flash.delete( :error )
         return
       end
       
       # We're going to keep track of new issue ID's to make dependencies work later
       uidToIssueIdMap = {}
+      # keep track of new Version ID's 
+      uidToVersionIdMap = {}
+      # keep track of the outlineNumbers to set the parent_id
+      outlineNumberToIssueIDMap = {}
 
       # Right, good to go! Do the import.
       begin
         Issue.transaction do
           to_import.each do | source_issue |
-
-            # Add the category entry if necessary
-            category_entry = IssueCategory.find :first, :conditions => { :project_id => @project.id, :name => source_issue.category }
-
-            if (category_entry.nil?)
-              # Need to create it
-              category_entry = IssueCategory.new do |i|
-                i.name = source_issue.category
-                i.project_id = @project.id
-              end
-
-              category_entry.save!
-            end
-
-            destination_issue          = Issue.new do |i|
-              i.tracker_id = default_tracker_id
-              i.category_id = category_entry.id
-              i.subject    = source_issue.title.slice(0, 255) # Max length of this field is 255
-              i.estimated_hours = source_issue.duration
-              i.project_id = @project.id
-              i.author_id = User.current.id
-              i.lock_version = 0
-              i.done_ratio = source_issue.percentcomplete
-              i.description = source_issue.title
-              i.start_date = source_issue.start
-              i.due_date = source_issue.finish unless source_issue.finish.nil?
-              i.due_date = (Date.parse(source_issue.start, false) + ((source_issue.duration.to_f/40.0)*7.0).to_i).to_s unless i.due_date != nil
-
-              if ( source_issue.assigned_to != "" )
-                i.assigned_to_id = source_issue.assigned_to
-                i.status_id = IssueStatus.find_by_name("Assigned").id
-              end
-            end
-
-            destination_issue.save!
             
-            # Now that we know this issue's Redmine issue ID, save it off for later
-            uidToIssueIdMap[ source_issue.uid ] = destination_issue.id
+            # We comment those lines becouse they are not necesary now.
+            # Add the category entry if necessary
+            #category_entry = IssueCategory.find :first, :conditions => { :project_id => @project.id, :name => source_issue.category }
+            logger.debug "DEBUG: Issue to be imported: #{source_issue.inspect}"
+            if ( source_issue.category != "" )  
+              logger.debug "DEBUG: Search category id by name: #{source_issue.category}"
+              category_entry = IssueCategory.find :first, :conditions => { :project_id => @project.id, :name => source_issue.category }
+              logger.debug "DEBUG: Category found: #{category_entry.inspect}"
+            else
+              category_entry = nil
+            end
+            if (source_issue.milestone.to_i == 0) 
+              destination_issue = Issue.find(:first, :conditions => ["project_id =? AND id=?", @project.id, source_issue.uid])|| Issue.new
+              destination_issue.tracker_id = default_tracker_id
+              destination_issue.category_id = category_entry.id unless category_entry.nil?
+              destination_issue.subject = source_issue.title.slice(0, 255) # Max length of this field is 255
+              destination_issue.estimated_hours = source_issue.duration
+              destination_issue.project_id = @project.id
+              destination_issue.author_id = User.current.id
+              destination_issue.lock_version = 0
+              destination_issue.done_ratio = source_issue.percentcomplete
+              destination_issue.start_date = source_issue.start
+              destination_issue.due_date = source_issue.finish unless source_issue.finish.nil?
+              destination_issue.due_date = (Date.parse(source_issue.start, false) + ((source_issue.duration.to_f/40.0)*7.0).to_i).to_s unless destination_issue.due_date != nil
+              destination_issue.description = source_issue.notes unless source_issue.notes == nil
+                  
+              logger.debug "DEBUG: Assigned_to field: #{source_issue.assigned_to}"
+              if ( source_issue.assigned_to != "" )
+                destination_issue.assigned_to_id = source_issue.assigned_to
+              end
+              destination_issue.save! unless destination_issue.nil? 
+               
+              logger.debug "DEBUG: Issue #{destination_issue.description} imported"
+              # Now that we know this issue's Redmine issue ID, save it off for later
+              uidToIssueIdMap[ source_issue.uid ] = destination_issue.id
+              #Save the Issue's ID with the outlineNumber as an index, to set the parent_id later
+              outlineNumberToIssueIDMap[ source_issue.outlinenumber ] = destination_issue.id
+            else
+              #If the issue is a milestone we save it as a Redmine Version
+              version_record = Version.find(:first, :conditions => ["project_id =? AND id=?", @project.id, source_issue.uid])|| Version.new 
+              version_record.name = source_issue.title.slice(0, 59)#maximum is 60 characters 
+              version_record.description = source_issue.notes unless source_issue.notes == nil
+              version_record.effective_date = source_issue.start
+              version_record.project_id = @project.id
+              version_record.save! unless version_record.nil? 
+              # Store the version_record.id  to assign the issues to the version later 
+              uidToVersionIdMap[ source_issue.uid ] = version_record.id
+            end     
           end
           
           flash[ :notice ] = "#{ to_import.length } #{ to_import.length == 1 ? 'task' : 'tasks' } imported successfully."
         end
         
+        # Set the parent_id. We use the outnum of the issue (the outlineNumber without the last .#). 
+        # This outnum is the same as the parent's outlineNumber, so we can use it as the index of the 
+        # outlineNumberToIssueIDMap to get the parent's ID          
+        Issue.transaction do
+          to_import.each do | source_issue |
+            destination_issue = Issue.find(:first, :conditions => ["project_id =? AND id=?", @project.id, uidToIssueIdMap[ source_issue.uid]])  
+            destination_issue.parent_issue_id = outlineNumberToIssueIDMap[source_issue.outnum] unless destination_issue.nil?
+            destination_issue.save! unless destination_issue.nil?
+         end
+        end   
+
+        # Delete all the relations off the issues that we are going to import. If they continue existing we are going to create them. If not they must be deleted.
+        to_import.each do | source_issue |
+          IssueRelation.delete_all(["issue_to_id =?", source_issue.uid]) 
+        end
+  
         # Handle all the dependencies being careful if the parent doesn't exist
         IssueRelation.transaction do
-          to_import.each do | source_issue |
+          to_import.each do | source_issue |    
+            delaynumber = 0
             source_issue.predecessors.each do | parent_uid |
+              # Parent is being imported also. Go ahead and add the association
               if ( uidToIssueIdMap.has_key?(parent_uid) )
-                # Parent is being imported also.  Go ahead and add the association
-                relation_record = IssueRelation.new do |i|
-                  i.issue_from_id = uidToIssueIdMap[parent_uid]
-                  i.issue_to_id = uidToIssueIdMap[source_issue.uid]
-                  i.relation_type = 'precedes'
+                # If the issue is not a milestone we have to create the issue relation
+                if (source_issue.milestone.to_i == 0)
+                  relation_record = IssueRelation.new do |i|
+                    i.issue_from_id = uidToIssueIdMap[parent_uid]
+                    i.issue_to_id = uidToIssueIdMap[source_issue.uid]
+                    i.relation_type = 'precedes'
+                    # Set the delay of the relation if it exists.
+                    if source_issue.delays[delaynumber] != nil 
+                      if source_issue.delays[delaynumber].to_i > 0  
+                        i.delay = (source_issue.delays[delaynumber].to_i)/4800
+                        delaynumber = delaynumber + 1
+                      end 
+                    end
+                  end
+                  relation_record.save!
+                else
+                  # If the issue is a milestone we have to assign the predecessor to the version
+                  destination_issue = Issue.find(:first, :conditions => ["project_id =? AND id=?", @project.id, uidToIssueIdMap[parent_uid]])
+                  destination_issue.fixed_version_id = uidToVersionIdMap[source_issue.uid]
+                  destination_issue.save!
                 end
-                relation_record.save!
-              end
+              end 
             end
           end
         end
-    
+  
+
         redirect_to( "/projects/#{@project.identifier}/issues" )
         
         
-      rescue => error
+        rescue => error
         flash[ :error ] = "Unable to import tasks: #{ error }"
+        logger.debug "DEBUG: Unable to import tasks: #{ error }"
         render( { :action => :new } )
-        flash.delete( :error )
-        
+       
       end
     end
   end
-  
+
+  def export
+    find_project()
+    xml, name = generate_xml
+    hijack_response(xml, name)   
+  end
+
   private
   
-  # Is the current action permitted?
 
   def find_project
     # @project variable must be set before calling the authorize filter
     @project = Project.find(params[:project_id])
   end
+ 
   
+  def generate_xml
+    xml = Builder::XmlMarkup.new( :target => out_string = "", :indent => 2 )
+    issues = []
+    xml.Project do    
+       xml.Tasks do
+         xml.Task do  
+           xml.UID("0")
+           xml.ID("0")
+           xml.Name(@project.name)
+           xml.Type("1")
+           xml.CreateDate(@project.created_on)
+           xml.ConstraintType("0")
+         end  
+         id = 0
+         issues =@project.issues.find(:all, :order=>"id")
+         issues.each do |issue|
+           xml.Task do
+             id += 1    
+             xml.UID(issue.id)
+             xml.ID(id)
+             xml.Name(issue.subject)
+             xml.Notes(issue.description)
+             xml.CreateDate(issue.created_on)
+             xml.Priority(issue.priority_id)
+             xml.Start(issue.start_date.to_s().concat("T08:00"))
+             xml.Finish(issue.due_date.to_s().concat("T17:00"))
+             xml.FixedCostAccrual("3")
+             xml.ConstraintType("4")
+             xml.ConstraintDate(issue.start_date.to_s().concat("T08:00"))
+             #If the issue is parent: summary, critical and rollup = 1, if not = 0
+             if is_parent(issue.id) == 1
+               xml.Summary("1")
+               xml.Critical("1")
+               xml.Rollup("1")
+               xml.Type("1")
+             else 
+               xml.Summary("0")
+               xml.Critical("0")
+               xml.Rollup("0")
+               xml.Type("0")
+             end
+             xml.PredecessorLink do  
+               IssueRelation.find(:all, :include => [:issue_from, :issue_to], :conditions => ["issue_to_id =? AND relation_type = 'precedes'", issue.id]).select do |ir|
+                 xml.PredecessorUID(ir.issue_from_id)      
+               end 
+             end
+             #If it is a main task => WBS = id, outlineNumber = id, outlinelevel = 1 
+             #If not, we have to get the outlinelevel 
+             outlinelevel = 1
+             while (issue.parent_id != nil)
+               issue = @project.issues.find(:first, :conditions => ["id = ?", issue.parent_id])     
+               outlinelevel +=1
+             end    
+             xml.WBS(id)
+             xml.OutlineNumber(id)
+             xml.OutlineLevel(outlinelevel)
+           end
+         end  
+         versions =@project.versions.find(:all, :order=>"id")
+         versions.each do |version|
+           xml.Task do
+             id += 1    
+             xml.UID(version.id)
+             xml.ID(id)
+             xml.Name(version.name)
+             xml.Notes(version.description)
+             xml.CreateDate(version.created_on)
+             xml.Start(version.effective_date.to_s().concat("T08:00"))
+             xml.Finish(version.effective_date.to_s().concat("T08:00"))
+             xml.FixedCostAccrual("3")
+             xml.ConstraintType("4")
+             xml.ConstraintDate(version.effective_date.to_s().concat("T08:00"))
+             issues =@project.issues.find(:all, :conditions =>["fixed_version_id=?",version.id] )
+             issues.each do |issue|
+               xml.PredecessorLink do
+                 xml.PredecessorUID(issue.id)
+               end
+             end
+           end
+         end
+       end
+       xml.Resources do
+         xml.Resource do
+           xml.UID("0")
+           xml.ID("0")
+           xml.Type("1")
+           xml.IsNull("0")  
+         end  
+         resources=@project.members.find(:all)
+         resources.each do |resource|
+           xml.Resource do
+             xml.UID(resource.user_id)
+             xml.ID(resource.id)  
+             xml.Name(resource.name)
+             xml.Type("1")
+             xml.IsNull("0") 
+           end
+         end  
+       end    
+       # We do not assign the issue to any resource, just set the done_ratio  
+       xml.Assignments do
+         @project.issues.each do |issue|
+           xml.Assignment do    
+             xml.UID(issue.id)
+             xml.TaskUID(issue.id)
+             xml.ResourceUID("-65535")
+             xml.PercentWorkComplete(issue.done_ratio)
+           end
+        end 
+      end     
+    end
+    
+    #To save the created xml with the name of the project  
+    projectname = @project.name + ".xml"
+    return out_string, projectname
+  end
+     
+  def hijack_response(out_data, projectname)
+    send_data( out_data, :type => "text/xml",
+    :filename => projectname )
+  end
+  
+  # Look if the issue is parent of another issue or not
+  def is_parent(issue_id)
+    return Issue.find(:first, :conditions =>["parent_id=?", issue_id])
+  end
+ 
   # Obtain a task list from the given parsed XML data (a REXML document).
   
   def get_tasks_from_xml( doc )
@@ -267,30 +461,55 @@ class LoaderController < ApplicationController
     # Extract details of every task into a flat array
     tasks = []
     
+    logger.debug "DEBUG: BEGIN get_tasks_from_xml"
+    
     doc.each_element( 'Project/Tasks/Task' ) do | task |
       begin
+        logger.debug "Project/Tasks/Task found"
         struct = OpenStruct.new
-        struct.level  = task.get_elements( 'OutlineLevel' )[ 0 ].text.to_i
-        struct.tid    = task.get_elements( 'ID'           )[ 0 ].text.to_i
-        struct.uid    = task.get_elements( 'UID'          )[ 0 ].text.to_i
-        struct.title  = task.get_elements( 'Name'         )[ 0 ].text.strip
-        struct.start  = task.get_elements( 'Start'        )[ 0 ].text.split("T")[0]
-        
-        struct.finish  = task.get_elements( 'Finish'        )[ 0 ].text.split("T")[0] unless task.get_elements( 'Finish')[ 0 ].nil?
-        struct.percentcomplete = task.get_elements( 'PercentComplete')[0].text.to_i
+        struct.level = task.get_elements( 'OutlineLevel' )[ 0 ].text.to_i unless task.get_elements( 'OutlineLevel' )[ 0 ].nil?
+        struct.outlinenumber = task.get_elements('OutlineNumber')[ 0 ].text.strip unless task.get_elements('OutlineNumber')[ 0 ].nil?
+  
+        auxString = struct.outlinenumber 
 
-        # Handle dependencies
-        struct.predecessors = []
-        task.each_element( 'PredecessorLink' ) do | predecessor |
-          begin
-            struct.predecessors.push( predecessor.get_elements('PredecessorUID')[0].text.to_i )
-          end
+        index = auxString.rindex('.')
+        if index != nil
+          index -= 1
+          struct.outnum = auxString[0..index]
         end
+        struct.tid = task.get_elements( 'ID' )[ 0 ].text.to_i unless task.get_elements( 'ID'           )[ 0 ].nil?
+        struct.uid = task.get_elements( 'UID' )[ 0 ].text.to_i unless task.get_elements( 'UID'          )[ 0 ].nil?
+        struct.title = task.get_elements( 'Name' )[ 0 ].text.strip unless task.get_elements( 'Name'         )[ 0 ].nil?
+        struct.start = task.get_elements( 'Start' )[ 0 ].text.split("T")[0] unless  task.get_elements( 'Start'        )[ 0 ].nil?
+        struct.finish = task.get_elements( 'Finish' )[ 0 ].text.split("T")[0] unless task.get_elements( 'Finish')[ 0 ].nil?
+        
+        s1 =task.get_elements( 'Start' )[ 0 ].text.strip unless  task.get_elements( 'Start'        )[ 0 ].nil?
+        s2 =task.get_elements( 'Finish' )[ 0 ].text.strip unless  task.get_elements( 'Finish')[ 0 ].nil?
+        
+        # If the start date and the finish date are the same it is a milestone
+        if s1 == s2
+          struct.milestone = 1
+        else  
+          struct.milestone = 0
+        end
+        
+        struct.percentcomplete = task.get_elements( 'PercentComplete')[0].text.to_i
+        struct.notes = task.get_elements( 'Notes' )[ 0 ].text.strip unless task.get_elements( 'Notes' )[ 0 ].nil?
+        struct.predecessors = []
+        struct.delays = []
+        task.each_element( 'PredecessorLink' ) do | predecessor |
+        begin
+          struct.predecessors.push( predecessor.get_elements('PredecessorUID')[0].text.to_i )
+          struct.delays.push( predecessor.get_elements('LinkLag')[0].text.to_i )                                
+        end
+      end
           
-        tasks.push( struct )
-      rescue
-        # Ignore errors; they tend to indicate malformed tasks, or at least,
-        # XML file task entries that we do not understand.
+      tasks.push( struct )
+      #rescue
+      rescue => error
+      # Ignore errors; they tend to indicate malformed tasks, or at least,
+      # XML file task entries that we do not understand.
+      logger.debug "DEBUG: Unrecovered error getting tasks: #{error}"
       end
     end
     
@@ -310,13 +529,19 @@ class LoaderController < ApplicationController
     category = ''
     
     tasks.each_index do | index |
-      task      = tasks[ index     ]
+      task = tasks[ index ]
       next_task = tasks[ index + 1 ]
       
-      if ( next_task and next_task.level > task.level )
-        category         = task.title.strip.gsub(/:$/, '') # Kill any trailing :'s which are common in some project files
-        all_categories.push(category)   # Keep track of all categories so we know which ones might need to be added
-        tasks[ index ] = nil
+      # Instead of deleting the sumary tasks I only delete the task 0 (the project)
+
+      #if ( next_task and next_task.level > task.level )
+      #  category = task.title.strip.gsub(/:$/, '') unless task.title.nil? # Kill any trailing :'s which are common in some project files
+      #  all_categories.push(category) # Keep track of all categories so we know which ones might need to be added
+        #tasks[ index ] = "Prueba"
+      if task.level == 0    
+        category = task.title.strip.gsub(/:$/, '') unless task.title.nil? # Kill any trailing :'s which are common in some project files
+        all_categories.push(category) # Keep track of all categories so we know which ones might need to be added
+        tasks[ index ] = nil  
       else
         task.category = category
       end
@@ -345,35 +570,40 @@ class LoaderController < ApplicationController
     
     real_tasks = []
     
-    doc.each_element( 'Project/Assignments/Assignment' ) do | as |
-      task_uid = as.get_elements( 'TaskUID' )[ 0 ].text.to_i
-      task = uid_tasks[ task_uid ] unless task_uid.nil?
-      next if ( task.nil? )
+    #doc.each_element( 'Project/Assignments/Assignment' ) do | as |
+    #  task_uid = as.get_elements( 'TaskUID' )[ 0 ].text.to_i
+    #  task = uid_tasks[ task_uid ] unless task_uid.nil?
+    #  next if ( task.nil? )
       
-      work = as.get_elements( 'Work' )[ 0 ].text
-      
+    #  work = as.get_elements( 'Work' )[ 0 ].text
       # Parse the "Work" string: "PT<num>H<num>M<num>S", but with some
       # leniency to allow any data before or after the H/M/S stuff.
-      hours = 0
-      mins = 0
-      secs = 0
+    #  hours = 0
+    #  mins = 0
+    #  secs = 0
       
-      strs = work.scan(/.*?(\d+)H(\d+)M(\d+)S.*?/).flatten unless work.nil?
-      hours, mins, secs = strs.map { | str | str.to_i } unless strs.nil?
+    #  strs = work.scan(/.*?(\d+)H(\d+)M(\d+)S.*?/).flatten unless work.nil?
+    #  hours, mins, secs = strs.map { | str | str.to_i } unless strs.nil?
       
       #next if ( hours == 0 and mins == 0 and secs == 0 )
       
       # Woohoo, real task!
       
-      task.duration = ( ( ( hours * 3600 ) + ( mins * 60 ) + secs ) / 3600 ).prec_f
+    #  task.duration = ( ( ( hours * 3600 ) + ( mins * 60 ) + secs ) / 3600 ).prec_f
       
-      real_tasks.push( task )
-    end
+    #  real_tasks.push( task )
+    #end
     
-    real_tasks = tasks if real_tasks.nil?
+    logger.debug "DEBUG: Real tasks: #{real_tasks.inspect}" 
+    logger.debug "DEBUG: Tasks: #{tasks.inspect}"
+    
+    real_tasks = tasks if real_tasks.empty?
+    
     real_tasks = real_tasks.uniq unless real_tasks.nil?
     all_categories = all_categories.uniq.sort
 
+    logger.debug "DEBUG: END get_tasks_from_xml"
+    
     return real_tasks, all_categories
   end
 end

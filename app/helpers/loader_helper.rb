@@ -50,7 +50,10 @@ module LoaderHelper
     # First populate the selection box with all the existing categories from this project
     existingCategoryList = IssueCategory.find :all, :conditions => { :project_id => project }
         
-    output = "<select id=\"" + fieldId + "\" name=\"" + fieldId + "\"><optgroup label=\"Existing Categories\"> "
+    output = "<select id=\"" + fieldId + "\" name=\"" + fieldId + "\"> "
+    # Empty entry
+    output << "<option value=\"\"></option>"
+    output << "<optgroup label=\"Existing Categories\"> "
 
     existingCategoryList.each do | category_info |
       if ( category_info.to_s == requestedCategory )
@@ -63,19 +66,19 @@ module LoaderHelper
     output << "</optgroup>"
 
     # Now add any new categories that we found in the project file
-    output << "<optgroup label=\"New Categories\"> "
+    #output << "<optgroup label=\"New Categories\"> "
 
-    allNewCategories.each do | category_name |
-      if ( not existingCategoryList.include?(category_name) )
-        if ( category_name == requestedCategory )
-          output << "<option value=\"" + category_name + "\" selected=\"selected\">" + category_name + "</option>"
-        else
-          output << "<option value=\"" + category_name + "\">" + category_name + "</option>"
-        end
-      end
-    end
+    #allNewCategories.each do | category_name |
+    #  if ( not existingCategoryList.include?(category_name) )
+    #    if ( category_name == requestedCategory )
+    #      output << "<option value=\"" + category_name + "\" selected=\"selected\">" + category_name + "</option>"
+    #    else
+    #      output << "<option value=\"" + category_name + "\">" + category_name + "</option>"
+    #    end
+    #  end
+    #end
 
-    output << "</optgroup>"
+    #output << "</optgroup>"
 
     output << "</select>"
 

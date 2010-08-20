@@ -22,6 +22,6 @@ Redmine::Plugin.register :redmine_loader do
   end
 
   menu :project_menu, :loader, { :controller => 'loader', :action => 'new' }, 
-    :caption => 'Import Issues', :after => :new_issue, :param => :project_id
+    :caption => 'Import/Export Issues', :after => :new_issue, :param => :project_id
 end
 

@@ -63,8 +63,7 @@
 <% form_for( :import, { :url => { :action => 'create' }, :html => { :id => 'import', :multipart => true } } ) do | f | %>
 <% if ( @import.nil? or @import.tasks.nil? or @import.tasks.empty? ) -%>
 <p>
-    This plugin can import data from XML format project management files which
-    were created by applications such as OpenProj or Microsoft Project.
+    This plugin can import/Export data from XML format project management files which were created by Microsoft Project.
 </p>
 <p>
     Any tasks with non-zero work time assigned are included. Task names are
@@ -73,9 +72,7 @@
     rounded to two decimal places if need be. Task codes are created from the
     current date and the task ID, this being typically directly related to
     position in which the task is listed in most graphical project plan editors.
-    Tasks are imported including all dependency data.  Categories are 
-    automatically determined from top level project headers and added to Redmine 
-    if necessary.
+    Tasks are imported including all dependency data.
 </p>
 <p>
     To import tasks, choose an XML file stored locally on your computer using
@@ -106,9 +103,6 @@
         <th> 
             &nbsp;UID&nbsp;
         </th>
-        <th>
-            &nbsp;Category&nbsp;
-        </th>
         <th align="left"> 
             &nbsp;Name
         </th>
@@ -117,9 +111,6 @@
         </th>
         <th>
             &nbsp;End Date&nbsp;
-        </th>
-        <th>
-            &nbsp;Duration&nbsp;
         </th>
         <th>
             &nbsp;%&nbsp;
@@ -151,10 +142,11 @@
         <td>
             <%= hidden_field_tag( "import[tasks][#{ index }][uid]", h( task.uid ) ) %>
             <%= hidden_field_tag( "import[tasks][#{ index }][level]", h( task.level ) ) %>
+	    	<%= hidden_field_tag( "import[tasks][#{ index }][outnum]", h( task.outnum ) ) %>
+	    	<%= hidden_field_tag( "import[tasks][#{ index }][outlinenumber]", h( task.outlinenumber ) ) %>	
+	    	<%= hidden_field_tag( "import[tasks][#{ index }][duration]", h( task.duration ) ) %>	
+	    	<%= hidden_field_tag( "import[tasks][#{ index }][notes]", h( task.notes ) ) %>	
             <%= h( task.uid ) %>
-        </td>
-        <td>
-            <%= loaderhelp_category_selector( "import[tasks][#{ index }][category]", @project, @import.new_categories, task.category ) %>
         </td>
         <td align="left" class="task_title">
             <%= titles[ task.title ] != true ? "<span class=\"dup\">#{ titles[ task.title] }:</span>" : '&nbsp;' %>
@@ -165,9 +157,6 @@
         </td>
         <td align="left">
             <%= text_field_tag( "import[tasks][#{ index }][finish]", h( task.finish ), { :size => 10 } ) %>
-        </td>
-        <td>
-            <%= text_field_tag( "import[tasks][#{ index }][duration]", h( task.duration ), { :maxlength => 6, :size => 6 } ) %>
         </td>
         <td align="left">
             <%= text_field_tag( "import[tasks][#{ index }][percentcomplete]", h( task.percentcomplete ), { :size => 3 } ) %>
@@ -182,6 +171,10 @@
         <td>
             <%= check_box_tag( "import[tasks][#{ index }][import]", '1', true, { :class => 'checkbox' } ) %>
         </td>
+	<td>
+            <%= hidden_field_tag( "import[tasks][#{ index }][delays]", h( task.delays.join(', ') ) ) %>
+            <%= hidden_field_tag( "import[tasks][#{ index }][milestone]", h( task.milestone ) ) %>
+        </td>	
     </tr>
     <% end -%>
     <tr>
@@ -212,3 +205,16 @@
 <p>
     <%= link_to( 'Cancel and return home', home_path() ) %>
 </p>
+
+<h1>Export tasks</h1>
+<% form_for( :import, { :url => { :action => 'export' },  :html => { :id => 'import', :multipart => true } } ) do | f | %>
+<p>
+    Generate a XML file to export all our Redmine issues to MS Project.
+</p>
+
+
+<%= hidden_field_tag( "project_id", "#{@project.id}" ) %>
+<%= f.submit( 'Export Issue', { :name => 'export'} ) %>
+
+
+<% end %>
