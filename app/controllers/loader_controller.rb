@@ -146,6 +146,7 @@ class LoaderController < ApplicationController
         struct.parent_id = task[ :parent_id ]
         struct.notes = task[:notes]
         struct.milestone = task[:milestone]
+        struct.tracker_name = task[ :tracker_name ]
         @import.tasks[ index ] = struct
         to_import[ index ] = struct if ( task[ :import ] == '1' )
       end
@@ -208,9 +209,19 @@ class LoaderController < ApplicationController
             else
               category_entry = nil
             end
+            
+            if (source_issue.tracker_name != "")
+               logger.debug "DEBUG: Search tracker id by name: #{source_issue.tracker_name}"
+               final_tracker = Tracker.find(:first, :conditions => [ "name = ?", source_issue.tracker_name])
+               logger.debug "DEBUG: Tracker found: #{category_entry.inspect}"
+            else
+              final_tracker = default_tracker;
+            end
+            final_tracker = default_tracker if final_tracker.nil?
+            
             if (source_issue.milestone.to_i == 0) 
               destination_issue = Issue.find(:first, :conditions => ["project_id =? AND id=?", @project.id, source_issue.uid])|| Issue.new
-              destination_issue.tracker_id = default_tracker_id
+              destination_issue.tracker_id = final_tracker.id
               destination_issue.category_id = category_entry.id unless category_entry.nil?
               destination_issue.subject = source_issue.title.slice(0, 255) # Max length of this field is 255
               destination_issue.estimated_hours = source_issue.duration
@@ -463,6 +474,13 @@ class LoaderController < ApplicationController
     
     logger.debug "DEBUG: BEGIN get_tasks_from_xml"
     
+    tracker_alias = Setting.plugin_redmine_loader['tracker_alias']
+    tracker_field_id = nil;
+    
+    doc.each_element( "Project/ExtendedAttributes/ExtendedAttribute[Alias='#{tracker_alias}']/FieldID") do | ext_attr |
+      tracker_field_id = ext_attr.text.to_i;  
+    end
+    
     doc.each_element( 'Project/Tasks/Task' ) do | task |
       begin
         logger.debug "Project/Tasks/Task found"
@@ -483,8 +501,12 @@ class LoaderController < ApplicationController
         struct.start = task.get_elements( 'Start' )[ 0 ].text.split("T")[0] unless  task.get_elements( 'Start'        )[ 0 ].nil?
         struct.finish = task.get_elements( 'Finish' )[ 0 ].text.split("T")[0] unless task.get_elements( 'Finish')[ 0 ].nil?
         
-        s1 =task.get_elements( 'Start' )[ 0 ].text.strip unless  task.get_elements( 'Start'        )[ 0 ].nil?
-        s2 =task.get_elements( 'Finish' )[ 0 ].text.strip unless  task.get_elements( 'Finish')[ 0 ].nil?
+        s1 = task.get_elements( 'Start' )[ 0 ].text.strip unless  task.get_elements( 'Start'        )[ 0 ].nil?
+        s2 = task.get_elements( 'Finish' )[ 0 ].text.strip unless  task.get_elements( 'Finish')[ 0 ].nil?
+        
+        task.each_element( "ExtendedAttribute[FieldID='#{tracker_field_id}']/Value") do | tracker_value |
+          struct.tracker_name = tracker_value.text;  
+        end
         
         # If the start date and the finish date are the same it is a milestone
         if s1 == s2

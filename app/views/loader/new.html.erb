@@ -106,6 +106,9 @@
         <th align="left"> 
             &nbsp;Name
         </th>
+	<th>
+            &nbsp;Tracker&nbsp;
+        </th>
         <th>
             &nbsp;Start Date&nbsp;
         </th>
@@ -151,6 +154,9 @@
         <td align="left" class="task_title">
             <%= titles[ task.title ] != true ? "<span class=\"dup\">#{ titles[ task.title] }:</span>" : '&nbsp;' %>
             <%= text_field_tag( "import[tasks][#{ index }][title]", h( task.title ), { :size => 50, :class => 'task_title' } ) %> 
+        </td>
+	<td align="left">
+            <%= text_field_tag( "import[tasks][#{ index }][tracker_name]", h( task.tracker_name ), { :size => 20 } ) %>
         </td>
         <td align="left">
             <%= text_field_tag( "import[tasks][#{ index }][start]", h( task.start ), { :size => 10 } ) %>
