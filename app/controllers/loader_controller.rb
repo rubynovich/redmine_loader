@@ -363,7 +363,7 @@ class LoaderController < ApplicationController
              xml.CreateDate(issue.created_on.to_s(:ms_xml))
              xml.Priority(issue.priority_id)
              xml.Start(issue.start_date.to_s(:ms_xml))
-             xml.Finish(issue.due_date.to_s(:ms_xml)) if issue.start_date
+             xml.Finish(issue.due_date.to_s(:ms_xml)) if issue.due_date
              xml.FixedCostAccrual("3")
              xml.ConstraintType("4")
              xml.ConstraintDate(issue.start_date.to_s(:ms_xml))
