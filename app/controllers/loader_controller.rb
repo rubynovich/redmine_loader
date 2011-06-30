@@ -362,11 +362,11 @@ class LoaderController < ApplicationController
              xml.Notes(issue.description)
              xml.CreateDate(issue.created_on.to_s(:ms_xml))
              xml.Priority(issue.priority_id)
-             xml.Start(issue.start_date.to_s(:ms_xml))
-             xml.Finish(issue.due_date.to_s(:ms_xml)) if issue.due_date
+             xml.Start(issue.start_date.to_time.to_s(:ms_xml))
+             xml.Finish(issue.due_date.to_time.to_s(:ms_xml)) if issue.due_date
              xml.FixedCostAccrual("3")
              xml.ConstraintType("4")
-             xml.ConstraintDate(issue.start_date.to_s(:ms_xml))
+             xml.ConstraintDate(issue.start_date.to_time.to_s(:ms_xml))
              #If the issue is parent: summary, critical and rollup = 1, if not = 0
              if is_parent(issue.id) == 1
                xml.Summary("1")
@@ -405,11 +405,11 @@ class LoaderController < ApplicationController
              xml.Name(version.name)
              xml.Notes(version.description)
              xml.CreateDate(version.created_on.to_s(:ms_xml))
-             xml.Start(version.effective_date.to_s(:ms_xml))
-             xml.Finish(version.effective_date.to_s(:ms_xml))
+             xml.Start(version.effective_date.to_time.to_s(:ms_xml))
+             xml.Finish(version.effective_date.to_time.to_s(:ms_xml))
              xml.FixedCostAccrual("3")
              xml.ConstraintType("4")
-             xml.ConstraintDate(version.effective_date.to_s(:ms_xml))
+             xml.ConstraintDate(version.effective_date.to_time.to_s(:ms_xml))
              issues =@project.issues.find(:all, :conditions =>["fixed_version_id=?",version.id] )
              issues.each do |issue|
                xml.PredecessorLink do

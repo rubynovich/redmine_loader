@@ -27,7 +27,7 @@ Redmine::Plugin.register :redmine_loader do
 
   # MS Project used YYYY-MM-DDTHH:MM:SS format. There no support of time zones, so time will be in UTC
   ActiveSupport::CoreExtensions::Time::Conversions::DATE_FORMATS.merge!(
-    :ms_xml => lambda{ |time| time.utc.to_time.strftime("%Y-%m-%dT%H:%M:%S") }
+    :ms_xml => lambda{ |time| time.utc.strftime("%Y-%m-%dT%H:%M:%S") }
   )
 end
 
