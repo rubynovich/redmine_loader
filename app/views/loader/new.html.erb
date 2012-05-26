@@ -180,9 +180,9 @@
 	<td>
             <%= hidden_field_tag( "import[tasks][#{ index }][delays]", h( task.delays.join(', ') ) ) %>
             <%= hidden_field_tag( "import[tasks][#{ index }][milestone]", h( task.milestone ) ) %>
-        </td>	
+        </td>
     </tr>
-    <% end -%>
+    <% end %>
     <tr>
         <td align="right" colspan="10">
             <script language="javascript" type="text/javascript">
@@ -191,19 +191,19 @@
             <%= f.submit( 'Import selected tasks', { :name => 'import[import_selected]' } ) %>
         </td>
     </tr>
-    <% if ( dupes > 0 ) -%>
+    <% if ( dupes > 0 ) %>
     <tr>
         <td align="right" colspan="5">
             <strong>Warning!</strong>
             Some task titles are identical. You need to rename them if importing. If you see a '500' Server error - you may have missed one.
         </td>
     </tr>
-    <% end -%>
+    <% end %>
 </table>
 <p>
     Alternatively, ignore the above tasks and analyse a different file:
 </p>
-<% end -%>
+<% end %>
 <%= hidden_field_tag( "project_id", "#{@project.id}" ) %>
 <%= f.file_field 'xmlfile' %>
 <%= f.submit( 'Analyse', { :name => 'import[analyse]', :disable_with => 'Analysing...' } ) %>

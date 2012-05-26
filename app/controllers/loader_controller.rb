@@ -79,7 +79,7 @@ class LoaderController < ApplicationController
           flash[ :error ] = 'No usable tasks were found in that file'
         else
           flash[ :notice ] = 'Tasks read successfully. Please choose items to import.'
-        end
+        end        
 
       rescue => error
 
@@ -162,7 +162,8 @@ class LoaderController < ApplicationController
       # On the other hand, if the 'import' button *was* used but no tasks were
       # selected for error, raise a different error.
 
-      if ( params[ :import ][ :import_selected ].nil? )
+      #if ( params[ :import ].nil? )
+      if ( params[ :import ][ :import_selected ].nil? )      
         flash[ :error ] = 'No new file was chosen for analysis. Please choose a file before using the "Analyse" button, or use the "Import" button to import tasks selected in the task list.'
       elsif ( to_import.empty? )
         flash[ :error ] = 'No tasks were selected for import. Please select at least one task and try again.'
