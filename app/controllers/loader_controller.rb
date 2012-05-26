@@ -501,8 +501,8 @@ class LoaderController < ApplicationController
         struct.start = task.get_elements( 'Start' )[ 0 ].text.split("T")[0] unless  task.get_elements( 'Start'        )[ 0 ].nil?
         struct.finish = task.get_elements( 'Finish' )[ 0 ].text.split("T")[0] unless task.get_elements( 'Finish')[ 0 ].nil?
 
-        s1 = task.get_elements( 'Start' )[ 0 ].text.strip unless  task.get_elements( 'Start'        )[ 0 ].nil?
-        s2 = task.get_elements( 'Finish' )[ 0 ].text.strip unless  task.get_elements( 'Finish')[ 0 ].nil?
+        s1 = task.get_elements( 'Start' )[ 0 ].text.strip unless  task.get_elements('Start')[ 0 ].nil?
+        s2 = task.get_elements( 'Finish' )[ 0 ].text.strip unless  task.get_elements('Finish')[ 0 ].nil?
 
         task.each_element( "ExtendedAttribute[FieldID='#{tracker_field_id}']/Value") do | tracker_value |
           struct.tracker_name = tracker_value.text;
@@ -529,9 +529,9 @@ class LoaderController < ApplicationController
       tasks.push( struct )
       #rescue
       rescue => error
-      # Ignore errors; they tend to indicate malformed tasks, or at least,
-      # XML file task entries that we do not understand.
-      logger.debug "DEBUG: Unrecovered error getting tasks: #{error}"
+        # Ignore errors; they tend to indicate malformed tasks, or at least,
+        # XML file task entries that we do not understand.
+        logger.debug "DEBUG: Unrecovered error getting tasks: #{error}"
       end
     end
 
@@ -616,6 +616,8 @@ class LoaderController < ApplicationController
     #  real_tasks.push( task )
     #end
 
+    set_assignment_to_task(doc,uid_tasks)
+
     logger.debug "DEBUG: Real tasks: #{real_tasks.inspect}"
     logger.debug "DEBUG: Tasks: #{tasks.inspect}"
 
@@ -628,4 +630,76 @@ class LoaderController < ApplicationController
 
     return real_tasks, all_categories
   end
+
+  NOT_USER_ASSIGNED = -65535
+
+  def set_assignment_to_task(doc,uid_tasks)    
+
+    #TODO: Are there any form to improve performance of this method ?
+    resource_by_user = get_bind_resource_users(doc)
+
+    doc.each_element( 'Project/Assignments/Assignment' ) do | as |
+      task_uid = as.get_elements( 'TaskUID' ).first.text.to_i
+      task = uid_tasks[ task_uid ] unless task_uid.nil?
+      next if ( task.nil? )
+
+      resource_id = as.get_elements('ResourceUID').first.text.to_i
+      next if (resource_id == NOT_USER_ASSIGNED)
+
+      task.assigned_to = resource_by_user[resource_id]
+
+    end
+
+  end
+
+  def get_bind_resource_users(doc)
+    
+    resources = get_resources(doc)
+    users_list = get_user_list_for_project()
+
+    users_list.sort_by { |user| user.login }
+
+    resource_by_user = []
+
+    resources.each do |uid,name|
+      user_found = users_list.find_all { |user| user.login == name }
+      next if (user_found.first.nil?)
+      resource_by_user[uid] = user_found.first.id
+    end
+    
+    return resource_by_user
+
+  end
+
+  def get_user_list_for_project()
+    memberList = Member.find( :all, :conditions => { :project_id => @project.id } )
+
+    userList = []
+    
+    memberList.each do | current_member |
+      userList.push( User.find( :first, :conditions => { :id => current_member.user_id } ) )
+    end
+
+    return userList    
+  end
+
+  def get_resources(doc)
+    
+    resources = {}
+
+    doc.each_element( 'Project/Resources/Resource' ) do | as |
+      
+      resource_uid = as.get_elements('UID').first.text.to_i
+      resource_name_element = as.get_elements('Name').first;      
+      
+      next if (resource_uid == 0 or resource_name_element.nil?)
+
+      resources[resource_uid] = resource_name_element.text
+
+    end
+
+    return resources
+
+  end
+
 end

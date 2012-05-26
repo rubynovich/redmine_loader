@@ -168,7 +168,7 @@
             <%= text_field_tag( "import[tasks][#{ index }][percentcomplete]", h( task.percentcomplete ), { :size => 3 } ) %>
         </td>
         <td>
-            <%= loaderhelp_user_selector( "import[tasks][#{ index }][assigned_to]", @project ) %>
+            <%= loaderhelp_user_selector( "import[tasks][#{ index }][assigned_to]", @project, task.assigned_to ) %>
         </td>
         <td>
             <%= hidden_field_tag( "import[tasks][#{ index }][predecessors]", h( task.predecessors.join(', ') ) ) %>
