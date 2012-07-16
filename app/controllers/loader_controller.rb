@@ -79,7 +79,7 @@ class LoaderController < ApplicationController
           flash[ :error ] = 'No usable tasks were found in that file'
         else
           flash[ :notice ] = 'Tasks read successfully. Please choose items to import.'
-        end
+        end        
 
       rescue => error
 
@@ -162,7 +162,7 @@ class LoaderController < ApplicationController
       # On the other hand, if the 'import' button *was* used but no tasks were
       # selected for error, raise a different error.
 
-      if ( params[ :import ][ :import_selected ].nil? )
+      if ( params[ :import ].nil? )
         flash[ :error ] = 'No new file was chosen for analysis. Please choose a file before using the "Analyse" button, or use the "Import" button to import tasks selected in the task list.'
       elsif ( to_import.empty? )
         flash[ :error ] = 'No tasks were selected for import. Please select at least one task and try again.'
@@ -362,11 +362,11 @@ class LoaderController < ApplicationController
              xml.Notes(issue.description)
              xml.CreateDate(issue.created_on.to_s(:ms_xml))
              xml.Priority(issue.priority_id)
-             xml.Start(issue.start_date.to_time.to_s(:ms_xml)) if issue.start_date
+             xml.Start(issue.start_date.to_time.to_s(:ms_xml))
              xml.Finish(issue.due_date.to_time.to_s(:ms_xml)) if issue.due_date
              xml.FixedCostAccrual("3")
              xml.ConstraintType("4")
-             xml.ConstraintDate(issue.start_date.to_time.to_s(:ms_xml)) if issue.start_date
+             xml.ConstraintDate(issue.start_date.to_time.to_s(:ms_xml))
              #If the issue is parent: summary, critical and rollup = 1, if not = 0
              if is_parent(issue.id) == 1
                xml.Summary("1")
@@ -405,11 +405,11 @@ class LoaderController < ApplicationController
              xml.Name(version.name)
              xml.Notes(version.description)
              xml.CreateDate(version.created_on.to_s(:ms_xml))
-             xml.Start(version.effective_date.to_time.to_s(:ms_xml)) if version.effective_date
-             xml.Finish(version.effective_date.to_time.to_s(:ms_xml)) if version.effective_date
+             xml.Start(version.effective_date.to_time.to_s(:ms_xml))
+             xml.Finish(version.effective_date.to_time.to_s(:ms_xml))
              xml.FixedCostAccrual("3")
              xml.ConstraintType("4")
-             xml.ConstraintDate(version.effective_date.to_time.to_s(:ms_xml))  if version.effective_date
+             xml.ConstraintDate(version.effective_date.to_time.to_s(:ms_xml))
              issues =@project.issues.find(:all, :conditions =>["fixed_version_id=?",version.id] )
              issues.each do |issue|
                xml.PredecessorLink do
@@ -501,8 +501,8 @@ class LoaderController < ApplicationController
         struct.start = task.get_elements( 'Start' )[ 0 ].text.split("T")[0] unless  task.get_elements( 'Start'        )[ 0 ].nil?
         struct.finish = task.get_elements( 'Finish' )[ 0 ].text.split("T")[0] unless task.get_elements( 'Finish')[ 0 ].nil?
 
-        s1 = task.get_elements( 'Start' )[ 0 ].text.strip unless  task.get_elements( 'Start'        )[ 0 ].nil?
-        s2 = task.get_elements( 'Finish' )[ 0 ].text.strip unless  task.get_elements( 'Finish')[ 0 ].nil?
+        s1 = task.get_elements( 'Start' )[ 0 ].text.strip unless  task.get_elements('Start')[ 0 ].nil?
+        s2 = task.get_elements( 'Finish' )[ 0 ].text.strip unless  task.get_elements('Finish')[ 0 ].nil?
 
         task.each_element( "ExtendedAttribute[FieldID='#{tracker_field_id}']/Value") do | tracker_value |
           struct.tracker_name = tracker_value.text;
@@ -529,9 +529,9 @@ class LoaderController < ApplicationController
       tasks.push( struct )
       #rescue
       rescue => error
-      # Ignore errors; they tend to indicate malformed tasks, or at least,
-      # XML file task entries that we do not understand.
-      logger.debug "DEBUG: Unrecovered error getting tasks: #{error}"
+        # Ignore errors; they tend to indicate malformed tasks, or at least,
+        # XML file task entries that we do not understand.
+        logger.debug "DEBUG: Unrecovered error getting tasks: #{error}"
       end
     end
 
@@ -616,6 +616,8 @@ class LoaderController < ApplicationController
     #  real_tasks.push( task )
     #end
 
+    set_assignment_to_task(doc,uid_tasks)
+
     logger.debug "DEBUG: Real tasks: #{real_tasks.inspect}"
     logger.debug "DEBUG: Tasks: #{tasks.inspect}"
 
@@ -628,4 +630,76 @@ class LoaderController < ApplicationController
 
     return real_tasks, all_categories
   end
+
+  NOT_USER_ASSIGNED = -65535
+
+  def set_assignment_to_task(doc,uid_tasks)    
+
+    #TODO: Are there any form to improve performance of this method ?
+    resource_by_user = get_bind_resource_users(doc)
+
+    doc.each_element( 'Project/Assignments/Assignment' ) do | as |
+      task_uid = as.get_elements( 'TaskUID' ).first.text.to_i
+      task = uid_tasks[ task_uid ] unless task_uid.nil?
+      next if ( task.nil? )
+
+      resource_id = as.get_elements('ResourceUID').first.text.to_i
+      next if (resource_id == NOT_USER_ASSIGNED)
+
+      task.assigned_to = resource_by_user[resource_id]
+
+    end
+
+  end
+
+  def get_bind_resource_users(doc)
+    
+    resources = get_resources(doc)
+    users_list = get_user_list_for_project()
+
+    users_list.sort_by { |user| user.login }
+
+    resource_by_user = []
+
+    resources.each do |uid,name|
+      user_found = users_list.find_all { |user| user.login == name }
+      next if (user_found.first.nil?)
+      resource_by_user[uid] = user_found.first.id
+    end
+    
+    return resource_by_user
+
+  end
+
+  def get_user_list_for_project()
+    memberList = Member.find( :all, :conditions => { :project_id => @project.id } )
+
+    userList = []
+    
+    memberList.each do | current_member |
+      userList.push( User.find( :first, :conditions => { :id => current_member.user_id } ) )
+    end
+
+    return userList    
+  end
+
+  def get_resources(doc)
+    
+    resources = {}
+
+    doc.each_element( 'Project/Resources/Resource' ) do | as |
+      
+      resource_uid = as.get_elements('UID').first.text.to_i
+      resource_name_element = as.get_elements('Name').first;      
+      
+      next if (resource_uid == 0 or resource_name_element.nil?)
+
+      resources[resource_uid] = resource_name_element.text
+
+    end
+
+    return resources
+
+  end
+
 end
