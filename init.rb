@@ -13,7 +13,7 @@ Redmine::Plugin.register :redmine_loader do
   requires_redmine :version_or_higher => '0.9.2'
 
   # Commented out because it refused to work in development mode
-  default_tracker_name = 'Funcionalidade' #Tracker.find_by_id( 1 ).name
+  default_tracker_name = 'Features' #Tracker.find_by_id( 1 ).name
   default_tracker_alias = 'Tracker'
 
   settings :default => {'tracker' => default_tracker_name, 'tracker_alias' => default_tracker_alias }, :partial => 'settings/loader_settings'
@@ -23,7 +23,12 @@ Redmine::Plugin.register :redmine_loader do
   end
 
   menu :project_menu, :loader, { :controller => 'loader', :action => 'new' },
-    :caption => 'Import/Export Issues', :after => :new_issue, :param => :project_id
+    :caption => :menu_caption, :after => :new_issue, :param => :project_id
+
+  # MS Project used YYYY-MM-DDTHH:MM:SS format. There no support of time zones, so time will be in UTC
+  ActiveSupport::CoreExtensions::Time::Conversions::DATE_FORMATS.merge!(
+    :ms_xml => lambda{ |time| time.utc.strftime("%Y-%m-%dT%H:%M:%S") }
+  )
 
   # MS Project used YYYY-MM-DDTHH:MM:SS format. There no support of time zones, so time will be in UTC
   ActiveSupport::CoreExtensions::Time::Conversions::DATE_FORMATS.merge!(

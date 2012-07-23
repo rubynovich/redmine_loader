@@ -1,4 +1,4 @@
-<h1>Import tasks</h1>
+<h1><%= l(:import_tasks) %></h1>
 <script language="javascript" type="text/javascript">
     function check_box_toggle_field(id, className, prefix, suffix){
         if (!$$) 
@@ -60,6 +60,7 @@
         event.currentTarget.options[0].selected = true;
     }
 </script>
+<%= l(:import_description) -%>
 <% form_for( :import, { :url => { :action => 'create' }, :html => { :id => 'import', :multipart => true } } ) do | f | %>
 <% if ( @import.nil? or @import.tasks.nil? or @import.tasks.empty? ) -%>
 <p>
@@ -180,7 +181,7 @@
 	<td>
             <%= hidden_field_tag( "import[tasks][#{ index }][delays]", h( task.delays.join(', ') ) ) %>
             <%= hidden_field_tag( "import[tasks][#{ index }][milestone]", h( task.milestone ) ) %>
-        </td>
+        </td>	
     </tr>
     <% end %>
     <tr>
@@ -212,7 +213,7 @@
     <%= link_to( 'Cancel and return home', home_path() ) %>
 </p>
 
-<h1>Export tasks</h1>
+<h1><%= l(:export_tasks) %></h1>
 <% form_for( :import, { :url => { :action => 'export' },  :html => { :id => 'import', :multipart => true } } ) do | f | %>
 <p>
     Generate a XML file to export all our Redmine issues to MS Project.
