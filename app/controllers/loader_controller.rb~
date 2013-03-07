@@ -79,7 +79,7 @@ class LoaderController < ApplicationController
           flash[ :error ] = 'No usable tasks were found in that file'
         else
           flash[ :notice ] = 'Tasks read successfully. Please choose items to import.'
-        end
+        end        
 
       rescue => error
 
@@ -633,7 +633,7 @@ class LoaderController < ApplicationController
 
   NOT_USER_ASSIGNED = -65535
 
-  def set_assignment_to_task(doc,uid_tasks)
+  def set_assignment_to_task(doc,uid_tasks)    
 
     #TODO: Are there any form to improve performance of this method ?
     resource_by_user = get_bind_resource_users(doc)
@@ -653,7 +653,7 @@ class LoaderController < ApplicationController
   end
 
   def get_bind_resource_users(doc)
-
+    
     resources = get_resources(doc)
     users_list = get_user_list_for_project()
 
@@ -666,24 +666,32 @@ class LoaderController < ApplicationController
       next if (user_found.first.nil?)
       resource_by_user[uid] = user_found.first.id
     end
-
+    
     return resource_by_user
 
   end
 
   def get_user_list_for_project()
-    Member.find(:all, :conditions => { :project_id => @project.id }).select(&:user).map(&:user)
+    memberList = Member.find( :all, :conditions => { :project_id => @project.id } )
+
+    userList = []
+    
+    memberList.each do | current_member |
+      userList.push( User.find( :first, :conditions => { :id => current_member.user_id } ) )
+    end
+
+    return userList    
   end
 
   def get_resources(doc)
-
+    
     resources = {}
 
     doc.each_element( 'Project/Resources/Resource' ) do | as |
-
+      
       resource_uid = as.get_elements('UID').first.text.to_i
-      resource_name_element = as.get_elements('Name').first;
-
+      resource_name_element = as.get_elements('Name').first;      
+      
       next if (resource_uid == 0 or resource_name_element.nil?)
 
       resources[resource_uid] = resource_name_element.text
