@@ -147,6 +147,7 @@ class LoaderController < ApplicationController
         struct.notes = task[:notes]
         struct.milestone = task[:milestone]
         struct.tracker_id = task[ :tracker_id ]
+        struct.parent_uid = task[ :parent_uid ]
         @import.tasks[ index ] = struct
         to_import[ index ] = struct if ( task[ :import ] == '1' )
       end
@@ -196,7 +197,7 @@ class LoaderController < ApplicationController
       # Right, good to go! Do the import.
       begin
         Issue.transaction do
-          to_import.each do | source_issue |
+          to_import.sort_by(&:level).each do | source_issue |
 
             # We comment those lines becouse they are not necesary now.
             # Add the category entry if necessary
@@ -223,6 +224,7 @@ class LoaderController < ApplicationController
             if (source_issue.milestone.to_i == 0)
               destination_issue = Issue.find(:first, :conditions => ["project_id =? AND id=?", @project.id, source_issue.uid])|| Issue.new
               destination_issue.tracker_id = final_tracker.id
+              destination_issue.parent_id = uidToIssueIdMap[ source_issue.parent_uid ]
               destination_issue.category_id = category_entry.id unless category_entry.nil?
               destination_issue.subject = source_issue.title.slice(0, 255) # Max length of this field is 255
               destination_issue.estimated_hours = source_issue.duration
@@ -539,6 +541,8 @@ class LoaderController < ApplicationController
 
     tasks = tasks.sort_by { | task | task.tid }
 
+    outlinenumber2UID = tasks.group_by(&:outlinenumber)
+
     # Step through the sorted tasks. Each time we find one where the
     # *next* task has an outline level greater than the current task,
     # then the current task MUST be a summary. Record its name and
@@ -567,9 +571,11 @@ class LoaderController < ApplicationController
       end
     end
 
-    # Remove any 'nil' items we created above
-    tasks.compact!
-    tasks = tasks.uniq
+    # Remove any 'nil' items we created above. Add parent_uid field
+    tasks = tasks.compact.uniq.map{ |task|
+      task.parent_uid = outlinenumber2UID[task.outnum][0].uid if outlinenumber2UID[task.outnum].present?
+      task
+    }
 
     # Now create a secondary array, where the UID of any given task is
     # the array index at which it can be found. This is just to make

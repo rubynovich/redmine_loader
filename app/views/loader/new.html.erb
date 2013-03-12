@@ -69,6 +69,7 @@
         <th>
             &nbsp;UID&nbsp;
         </th>
+        <th>&nbsp;Dup&nbsp;</th>
         <th align="left">
             <%= l(:field_subject) %>
         </th>
@@ -88,10 +89,13 @@
             <%= l(:field_assigned_to) %>
         </th>
         <th>
-            &nbsp;Requires&nbsp;
+          &nbsp;Requires&nbsp;
         </th>
         <th>
-            &nbsp;Import?&nbsp;
+          &nbsp;ParentUID&nbsp;
+        </th>
+        <th>
+          &nbsp;Import?&nbsp;
         </th>
     </tr>
     <% titles = {}
@@ -117,8 +121,11 @@
 	    	<%= hidden_field_tag( "import[tasks][#{ index }][notes]", h( task.notes ) ) %>
             <%= h( task.uid ) %>
         </td>
+        <td>
+          <%= titles[ task.title ] != true ? "<span class=\"dup\">#{ titles[ task.title] }:</span>" : '&nbsp;' %>
+        </td>
         <td align="left" class="task_title">
-            <%= titles[ task.title ] != true ? "<span class=\"dup\">#{ titles[ task.title] }:</span>" : '&nbsp;' %>
+            <%= h( task.outlinenumber ) %>
             <%= text_field_tag( "import[tasks][#{ index }][title]", h( task.title ), { :size => 50, :class => 'task_title' } ) %>
         </td>
 	<td align="left">
@@ -141,9 +148,13 @@
             <%= h( task.predecessors.join(', ') ) %>
         </td>
         <td>
+          <%= h(task.parent_uid) %>
+          <%= hidden_field_tag( "import[tasks][#{ index }][parent_uid]", h( task.parent_uid )) %>
+        </td>
+        <td>
             <%= check_box_tag( "import[tasks][#{ index }][import]", '1', true, { :class => 'checkbox' } ) %>
         </td>
-	<td>
+        <td>
             <%= hidden_field_tag( "import[tasks][#{ index }][delays]", h( task.delays.join(', ') ) ) %>
             <%= hidden_field_tag( "import[tasks][#{ index }][milestone]", h( task.milestone ) ) %>
         </td>
