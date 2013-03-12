@@ -146,7 +146,7 @@ class LoaderController < ApplicationController
         struct.parent_id = task[ :parent_id ]
         struct.notes = task[:notes]
         struct.milestone = task[:milestone]
-        struct.tracker_name = task[ :tracker_name ]
+        struct.tracker_id = task[ :tracker_id ]
         @import.tasks[ index ] = struct
         to_import[ index ] = struct if ( task[ :import ] == '1' )
       end
@@ -210,12 +210,13 @@ class LoaderController < ApplicationController
               category_entry = nil
             end
 
-            if (source_issue.tracker_name != "")
+            if (source_issue.tracker_id.present?)
                logger.debug "DEBUG: Search tracker id by name: #{source_issue.tracker_name}"
-               final_tracker = Tracker.find(:first, :conditions => [ "name = ?", source_issue.tracker_name])
+#               final_tracker = Tracker.find(:first, :conditions => [ "name = ?", source_issue.tracker_name])
+               final_tracker = Tracker.find(:first, :conditions => {:id => source_issue.tracker_id})
                logger.debug "DEBUG: Tracker found: #{category_entry.inspect}"
             else
-              final_tracker = default_tracker;
+              final_tracker = default_tracker
             end
             final_tracker = default_tracker if final_tracker.nil?
 
@@ -485,35 +486,32 @@ class LoaderController < ApplicationController
       begin
         logger.debug "Project/Tasks/Task found"
         struct = OpenStruct.new
-        struct.level = task.get_elements( 'OutlineLevel' )[ 0 ].text.to_i unless task.get_elements( 'OutlineLevel' )[ 0 ].nil?
-        struct.outlinenumber = task.get_elements('OutlineNumber')[ 0 ].text.strip unless task.get_elements('OutlineNumber')[ 0 ].nil?
+        struct.level = task.get_elements( 'OutlineLevel' )[0].text.to_i if task.get_elements('OutlineLevel')[0]
+        struct.outlinenumber = task.get_elements('OutlineNumber')[0].text.strip if task.get_elements('OutlineNumber')[0]
 
         auxString = struct.outlinenumber
 
         index = auxString.rindex('.')
-        if index != nil
+        if index
           index -= 1
           struct.outnum = auxString[0..index]
         end
-        struct.tid = task.get_elements( 'ID' )[ 0 ].text.to_i unless task.get_elements( 'ID'           )[ 0 ].nil?
-        struct.uid = task.get_elements( 'UID' )[ 0 ].text.to_i unless task.get_elements( 'UID'          )[ 0 ].nil?
-        struct.title = task.get_elements( 'Name' )[ 0 ].text.strip unless task.get_elements( 'Name'         )[ 0 ].nil?
-        struct.start = task.get_elements( 'Start' )[ 0 ].text.split("T")[0] unless  task.get_elements( 'Start'        )[ 0 ].nil?
-        struct.finish = task.get_elements( 'Finish' )[ 0 ].text.split("T")[0] unless task.get_elements( 'Finish')[ 0 ].nil?
 
-        s1 = task.get_elements( 'Start' )[ 0 ].text.strip unless  task.get_elements('Start')[ 0 ].nil?
-        s2 = task.get_elements( 'Finish' )[ 0 ].text.strip unless  task.get_elements('Finish')[ 0 ].nil?
+        struct.tid = task.get_elements('ID')[0].text.to_i if task.get_elements('ID')[0]
+        struct.uid = task.get_elements('UID')[0].text.to_i if task.get_elements('UID')[0]
+        struct.title = task.get_elements('Name')[0].text.strip if task.get_elements('Name')[0]
+        struct.start = task.get_elements('Start')[0].text.split("T")[0] if task.get_elements('Start')[0]
+        struct.finish = task.get_elements('Finish')[0].text.split("T")[0] if task.get_elements('Finish')[0]
+
+        s1 = task.get_elements('Start')[0].text.strip if task.get_elements('Start')[0]
+        s2 = task.get_elements('Finish')[0].text.strip if task.get_elements('Finish')[0]
 
         task.each_element( "ExtendedAttribute[FieldID='#{tracker_field_id}']/Value") do | tracker_value |
-          struct.tracker_name = tracker_value.text;
+          struct.tracker_name = tracker_value.text
         end
 
         # If the start date and the finish date are the same it is a milestone
-        if s1 == s2
-          struct.milestone = 1
-        else
-          struct.milestone = 0
-        end
+        struct.milestone = (s1 == s2) ? 1 : 0
 
         struct.percentcomplete = task.get_elements( 'PercentComplete')[0].text.to_i
         struct.notes = task.get_elements( 'Notes' )[ 0 ].text.strip unless task.get_elements( 'Notes' )[ 0 ].nil?
@@ -647,28 +645,21 @@ class LoaderController < ApplicationController
       next if (resource_id == NOT_USER_ASSIGNED)
 
       task.assigned_to = resource_by_user[resource_id]
-
     end
 
   end
 
   def get_bind_resource_users(doc)
-
     resources = get_resources(doc)
-    users_list = get_user_list_for_project()
-
-    users_list.sort_by { |user| user.login }
-
-    resource_by_user = []
+    users_list = get_user_list_for_project
+    resource_by_user = {}
 
     resources.each do |uid,name|
       user_found = users_list.find_all { |user| user.login == name }
       next if (user_found.first.nil?)
       resource_by_user[uid] = user_found.first.id
     end
-
-    return resource_by_user
-
+    resource_by_user
   end
 
   def get_user_list_for_project()
@@ -676,22 +667,16 @@ class LoaderController < ApplicationController
   end
 
   def get_resources(doc)
-
     resources = {}
 
     doc.each_element( 'Project/Resources/Resource' ) do | as |
-
       resource_uid = as.get_elements('UID').first.text.to_i
       resource_name_element = as.get_elements('Name').first;
 
       next if (resource_uid == 0 or resource_name_element.nil?)
 
       resources[resource_uid] = resource_name_element.text
-
     end
-
-    return resources
-
+    resources
   end
-
 end

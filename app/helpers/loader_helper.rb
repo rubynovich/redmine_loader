@@ -10,33 +10,33 @@
 ########################################################################
 
 module LoaderHelper
-  
+
   # Generate a project selector for the project to which imported tasks will
   # be assigned. HTML is output which is suitable for inclusion in a table
   # cell or other similar container. Pass the form object being used for the
   # task import view.
-  
+
   def loaderhelp_project_selector( form )
     projectlist = Project.find :all, :conditions => Project.visible_by(User.current)
-    
+
     unless( projectlist.empty? )
       output  = "        &nbsp;Project to which all tasks will be assigned:\n"
       output  << "<select id=\"import_project_id\" name=\"import[project_id]\"><optgroup label=\"Your Projects\"> "
-      
+
       projectlist.each do | projinfo |
-        
+
         output = output + "<option value=\"" + projinfo.id.to_s + "\">" + projinfo.to_s + "</option>"
-        
+
       end
       output << "</optgroup>"
       output << "</select>"
-      
-      
+
+
     else
       output  = "        There are no projects defined. You can create new\n"
       output << "        projects #{ link_to( 'here', '/project/new' ) }."
     end
-    
+
     return output
   end
 
@@ -44,12 +44,12 @@ module LoaderHelper
   # be assigned. HTML is output which is suitable for inclusion in a table
   # cell or other similar container. Pass the form object being used for the
   # task import view.
-  
+
   def loaderhelp_category_selector( fieldId, project, allNewCategories, requestedCategory )
 
     # First populate the selection box with all the existing categories from this project
     existingCategoryList = IssueCategory.find :all, :conditions => { :project_id => project }
-        
+
     output = "<select id=\"" + fieldId + "\" name=\"" + fieldId + "\"> "
     # Empty entry
     output << "<option value=\"\"></option>"
@@ -96,7 +96,7 @@ module LoaderHelper
     memberList = Member.find( :all, :conditions => { :project_id => project } )
 
     userList = []
-    
+
     memberList.each do | current_member |
       userList.push( User.find( :first, :conditions => { :id => current_member.user_id } ) )
     end
@@ -119,5 +119,22 @@ module LoaderHelper
     return output
 
   end
-  
+
+  def loaderhelp_tracker_selector( fieldId, project, tracker_name )
+    output = "<select id=\"" + fieldId + "\" name=\"" + fieldId + "\">"
+
+    # Empty entry
+    output << "<option value=\"\"></option>"
+
+    # Add all the trackers
+    project.trackers.each do |tracker|
+      output << "<option value=\"#{tracker.id}\""
+      output << " selected='selected' " if tracker.name == tracker_name
+      output << " >" + tracker.name + "</option>"
+    end
+
+    output << "</select>"
+
+    return output
+  end
 end
