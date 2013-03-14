@@ -1,0 +1,127 @@
+%h1= l(:import_tasks)
+:javascript
+  function check_box_toggle_field(id, className, prefix, suffix){
+    if (!$$)
+      return;
+
+    var doc = '<select id="' + id + '">' +
+    '<option disabled="disabled" selected="selected">Selections...</option>' +
+    '<option>Select all</option>' +
+    '<option>Select none</option>' +
+    '<option>Invert selection</option>' +
+    '</select>';
+
+    if (prefix)
+      doc = prefix + doc;
+    if (suffix)
+      doc = doc + suffix;
+
+    document.write(doc);
+
+    var list = document.getElementById(id);
+    if (!list)
+      return;
+
+    new SelectionHandler(list, className);
+  }
+
+  function SelectionHandler(list, className){
+    this.list = list;
+    this.className = className;
+
+    list.addEventListener('change', this, false);
+  }
+
+  SelectionHandler.prototype.handleEvent = function(event){
+    $$('input.' + this.className).each(function(box){
+      switch (event.currentTarget.selectedIndex) {
+        case 1:
+          box.checked = true;
+          break;
+        case 2:
+          box.checked = false;
+          break;
+        case 3:
+          box.checked = !box.checked;
+          break;
+        }
+    });
+    event.currentTarget.options[0].selected = true;
+  }
+
+- form = form_for( :import, { :url => { :action => 'create' }, :html => { :id => 'import', :multipart => true } } ) do |f|
+  - if ( @import.nil? or @import.tasks.nil? or @import.tasks.empty? )
+    -# l(:import_description)
+  - else
+    %table{:border=>"0", :cellspacing=>"0", :cellpadding=>"2", :align=>"center", :class=>"bulk_task_import"}
+      %tr{:valign=>"middle", :align=>"center", :class=>"info"}
+        %th
+          = l_or_humanize(:uid, :prefix => :label_)
+        %th{:align=>"left"}
+          = l(:field_subject)
+        %th
+          = l(:field_tracker)
+        %th
+          = l(:field_start_date)
+        %th
+          = l(:field_due_date)
+        %th
+          = l(:field_done_ratio)
+        %th
+          = l(:field_assigned_to)
+        %th
+          = l_or_humanize(:requires, :prefix => :label_)
+        %th
+          = l_or_humanize(:parent_uid, :prefix => :label_)
+        %th
+          = l_or_humanize(:import?, :prefix => :label_)
+      - @import.tasks.each_with_index do |task, index|
+        %tr{:valign=>"top", :align=>"center", :class=>cycle( 'even', 'odd' )}
+          %td
+            = hidden_field_tag( "import[tasks][#{ index }][uid]", h( task.uid ) )
+            = hidden_field_tag( "import[tasks][#{ index }][level]", h( task.level ) )
+            = hidden_field_tag( "import[tasks][#{ index }][outnum]", h( task.outnum ) )
+            = hidden_field_tag( "import[tasks][#{ index }][outlinenumber]", h( task.outlinenumber ) )
+            = hidden_field_tag( "import[tasks][#{ index }][duration]", h( task.duration ) )
+            = hidden_field_tag( "import[tasks][#{ index }][notes]", h( task.notes ) )
+            = h( task.uid )
+          -#%td
+            = titles[ task.title ] != true ? "<span class=\"dup\">#{ titles[ task.title] }:</span>" : '&nbsp;'
+          %td{:align=>"left", :class=>"task_title"}
+            = h( task.outlinenumber )
+            = text_field_tag( "import[tasks][#{ index }][title]", h( task.title ), { :size => 50, :class => 'task_title' } )
+          %td{:align=>"left"}
+            = loaderhelp_tracker_selector( "import[tasks][#{ index }][tracker_id]", @project, task.tracker_name )
+          %td{:align=>"left"}
+            = text_field_tag( "import[tasks][#{ index }][start]", h( task.start ), { :size => 10 } )
+          %td{:align=>"left"}
+            = text_field_tag( "import[tasks][#{ index }][finish]", h( task.finish ), { :size => 10 } )
+          %td{:align=>"left"}
+            = text_field_tag( "import[tasks][#{ index }][percentcomplete]", h( task.percentcomplete ), { :size => 3 } )
+          %td
+            = loaderhelp_user_selector( "import[tasks][#{ index }][assigned_to]", @project, task.assigned_to )
+          %td
+            = hidden_field_tag( "import[tasks][#{ index }][predecessors]", h( task.predecessors.join(', ') ) )
+            = h( task.predecessors.join(', ') )
+          %td
+            = h(task.parent_uid)
+            = hidden_field_tag( "import[tasks][#{ index }][parent_uid]", h( task.parent_uid ))
+          %td
+            = check_box_tag( "import[tasks][#{ index }][import]", '1', true, { :class => 'checkbox' } )
+          %td
+            = hidden_field_tag( "import[tasks][#{ index }][delays]", h( task.delays.join(', ') ) )
+            = hidden_field_tag( "import[tasks][#{ index }][milestone]", h( task.milestone ) )
+      %tr
+        %td{:align=>"right", :colspan=>"10"}
+          :javascript
+            check_box_toggle_field('toggle_check_boxes', 'checkbox', 'Select tasks&nbsp;', '&nbsp;then');
+          = f.submit( 'Import selected tasks', { :name => 'import[import_selected]' } )
+    %p
+      Alternatively, ignore the above tasks and analyse a different file:
+  = hidden_field_tag( "project_id", "#{@project.id}" )
+  = f.file_field 'xmlfile'
+  = f.submit( l_or_humanize(:analyse, :prefix => :label_), { :name => 'import[analyse]', :disable_with => l_or_humanize(:analysing, :prefix => :label_) } )
+
+= form if Rails::VERSION::MAJOR >= 3
+%p
+  = link_to( l_or_humanize(:cancel_and_return_home, :prefix => :label_), home_path() )

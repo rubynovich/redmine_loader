@@ -104,7 +104,7 @@ module LoaderHelper
     output = "<select id=\"" + fieldId + "\" name=\"" + fieldId + "\">"
 
     # Empty entry
-    output << "<option value=\"\"></option>"
+#    output << "<option value=\"\"></option>"
 
     # Add all the users
     userList = userList.sort { |a,b| a.firstname + a.lastname <=> b.firstname + b.lastname }

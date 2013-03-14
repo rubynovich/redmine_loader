@@ -127,27 +127,9 @@ class LoaderController < ApplicationController
       tasks.each do | taskinfo |
         index = taskinfo[ 0 ].to_i
         task = taskinfo[ 1 ]
-        struct = OpenStruct.new
-
-        struct.uid = task[ :uid ]
-        struct.title = task[ :title ]
-        struct.level = task[ :level ]
-        struct.outlinenumber = task[ :outlinenumber ]
-        struct.outnum = task[ :outnum ]
-        struct.code = task[ :code ]
-        struct.duration = task[ :duration ]
-        struct.start = task[ :start ]
-        struct.finish = task[ :finish ]
-        struct.percentcomplete = task[ :percentcomplete ]
-        struct.predecessors = task[ :predecessors ].split(', ')
-        struct.delays = task[ :delays ].split(', ')
-        struct.category = task[ :category ]
-        struct.assigned_to = task[ :assigned_to ]
-        struct.parent_id = task[ :parent_id ]
-        struct.notes = task[:notes]
-        struct.milestone = task[:milestone]
-        struct.tracker_id = task[ :tracker_id ]
-        struct.parent_uid = task[ :parent_uid ]
+        struct = OpenStruct.new(task)
+        struct.predecessors = struct.predecessors.split(', ')
+        struct.delays = struct.delays.split(', ')
         @import.tasks[ index ] = struct
         to_import[ index ] = struct if ( task[ :import ] == '1' )
       end
@@ -173,7 +155,7 @@ class LoaderController < ApplicationController
       #
       # Tracker
       default_tracker_name = Setting.plugin_redmine_loader['tracker']
-      default_tracker = Tracker.find(:first, :conditions => [ "name = ?", default_tracker_name])
+      default_tracker = Tracker.find_by_name(default_tracker_name)
       default_tracker_id = default_tracker.id
 
       if ( default_tracker_id.nil? )
@@ -203,18 +185,18 @@ class LoaderController < ApplicationController
             # Add the category entry if necessary
             #category_entry = IssueCategory.find :first, :conditions => { :project_id => @project.id, :name => source_issue.category }
             logger.debug "DEBUG: Issue to be imported: #{source_issue.inspect}"
-            if ( source_issue.category != "" )
+            if source_issue.category.present?
               logger.debug "DEBUG: Search category id by name: #{source_issue.category}"
-              category_entry = IssueCategory.find :first, :conditions => { :project_id => @project.id, :name => source_issue.category }
+              category_entry = IssueCategory.find_by_project_id_and_name(@project.id, source_issue.category)
               logger.debug "DEBUG: Category found: #{category_entry.inspect}"
             else
               category_entry = nil
             end
 
-            if (source_issue.tracker_id.present?)
+            if source_issue.tracker_id.present?
                logger.debug "DEBUG: Search tracker id by name: #{source_issue.tracker_name}"
 #               final_tracker = Tracker.find(:first, :conditions => [ "name = ?", source_issue.tracker_name])
-               final_tracker = Tracker.find(:first, :conditions => {:id => source_issue.tracker_id})
+               final_tracker = Tracker.find_by_id(source_issue.tracker_id)
                logger.debug "DEBUG: Tracker found: #{category_entry.inspect}"
             else
               final_tracker = default_tracker
@@ -222,9 +204,11 @@ class LoaderController < ApplicationController
             final_tracker = default_tracker if final_tracker.nil?
 
             if (source_issue.milestone.to_i == 0)
-              destination_issue = Issue.find(:first, :conditions => ["project_id =? AND id=?", @project.id, source_issue.uid])|| Issue.new
+              destination_issue = Issue.find_by_project_id_and_id(@project.id, source_issue.uid) || Issue.new
               destination_issue.tracker_id = final_tracker.id
-              destination_issue.parent_id = uidToIssueIdMap[ source_issue.parent_uid ]
+              if parent = Issue.find_by_id(uidToIssueIdMap[source_issue.parent_uid])
+                destination_issue.parent_issue_id = parent.id
+              end
               destination_issue.category_id = category_entry.id unless category_entry.nil?
               destination_issue.subject = source_issue.title.slice(0, 255) # Max length of this field is 255
               destination_issue.estimated_hours = source_issue.duration
@@ -238,8 +222,8 @@ class LoaderController < ApplicationController
               destination_issue.description = source_issue.notes unless source_issue.notes == nil
 
               logger.debug "DEBUG: Assigned_to field: #{source_issue.assigned_to}"
-              if ( source_issue.assigned_to != "" )
-                destination_issue.assigned_to_id = source_issue.assigned_to
+              if ( assigned_to = User.find_by_id(source_issue.assigned_to) )
+                destination_issue.assigned_to = assigned_to
               end
               destination_issue.save! unless destination_issue.nil?
 
@@ -250,7 +234,7 @@ class LoaderController < ApplicationController
               outlineNumberToIssueIDMap[ source_issue.outlinenumber ] = destination_issue.id
             else
               #If the issue is a milestone we save it as a Redmine Version
-              version_record = Version.find(:first, :conditions => ["project_id =? AND id=?", @project.id, source_issue.uid])|| Version.new
+              version_record = Version.find_by_project_id_and_id(@project.id, source_issue.uid)|| Version.new
               version_record.name = source_issue.title.slice(0, 59)#maximum is 60 characters
               version_record.description = source_issue.notes unless source_issue.notes == nil
               version_record.effective_date = source_issue.start
@@ -572,10 +556,10 @@ class LoaderController < ApplicationController
     end
 
     # Remove any 'nil' items we created above. Add parent_uid field
-    tasks = tasks.compact.uniq.map{ |task|
+    tasks = tasks.compact.uniq.map do |task|
       task.parent_uid = outlinenumber2UID[task.outnum][0].uid if outlinenumber2UID[task.outnum].present?
       task
-    }
+    end
 
     # Now create a secondary array, where the UID of any given task is
     # the array index at which it can be found. This is just to make
