@@ -75,7 +75,7 @@ class LoaderController < ApplicationController
         xmldoc = REXML::Document.new( xmlfile.read() )
         @import.tasks, @import.new_categories = get_tasks_from_xml( xmldoc )
 
-        if ( @import.tasks.nil? or @import.tasks.empty? )
+        if @import.tasks.blank?
           flash[ :error ] = 'No usable tasks were found in that file'
         else
           flash[ :notice ] = 'Tasks read successfully. Please choose items to import.'
@@ -101,7 +101,7 @@ class LoaderController < ApplicationController
 
       tasks = params[ :import ][ :tasks ]
 
-      if ( tasks.nil? )
+      if ( tasks.blank? )
         flash[ :error ] = "Please choose a file before using the 'Analyse' button."
         render( { :action => :new } )
         flash.delete( :error )
@@ -204,12 +204,11 @@ class LoaderController < ApplicationController
             final_tracker = default_tracker if final_tracker.nil?
 
             if (source_issue.milestone.to_i == 0)
-              destination_issue = Issue.find_by_project_id_and_id(@project.id, source_issue.uid) || Issue.new
+              destination_issue = Issue.find_by_project_id_and_uid(@project.id, source_issue.uid) || Issue.new
               destination_issue.tracker_id = final_tracker.id
-              if parent = Issue.find_by_id(uidToIssueIdMap[source_issue.parent_uid])
-                destination_issue.parent_issue_id = parent.id
-              end
-              destination_issue.category_id = category_entry.id unless category_entry.nil?
+              destination_issue.parent_issue_id = Issue.find_by_id(uidToIssueIdMap[source_issue.parent_uid]).try(:id)
+              destination_issue.uid = source_issue.uid.to_i
+              destination_issue.category_id = category_entry.id if category_entry.present?
               destination_issue.subject = source_issue.title.slice(0, 255) # Max length of this field is 255
               destination_issue.estimated_hours = source_issue.duration
               destination_issue.project_id = @project.id
