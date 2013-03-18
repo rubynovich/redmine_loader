@@ -8,10 +8,10 @@
 #          Feb 2009 (SJS): Hacked into plugin for redmine              #
 ########################################################################
 
-#class TaskImport
-#  @tasks      = []
-#  @project_id = nil
-#  @new_categories = []
+class TaskImport
+  @tasks      = []
+  @project_id = nil
+  @new_categories = []
 
-#  attr_accessor(:tasks, :project_id, :new_categories)
-#end
+  attr_accessor(:tasks, :project_id, :new_categories)
+end

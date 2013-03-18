@@ -1,0 +1,14 @@
+ru:
+  label_menu_loader: Импорт из MS Project
+  label_uid: UID
+  label_requires: Связанные
+  label_parent_uid: Родительская
+  label_import?: Импорт?
+  label_analyse: Анализ
+  label_analysing: Анализирую
+  label_cancel_and_return_home: Отмена и возврат
+  label_import_tasks: Импортирование задач из MS Project
+  permission_import_issues_from_xml: Импорт из MS Project
+  project_module_project_xml_importer: Импорт из MS Project
+  message_import_description: Потом напишу
+  message_export_description: Даже не знаю, буду ли писать

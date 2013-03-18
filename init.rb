@@ -23,7 +23,7 @@ Redmine::Plugin.register :redmine_loader do
   end
 
   menu :project_menu, :loader, { :controller => 'loader', :action => 'new' },
-    :caption => :menu_caption, :after => :new_issue, :param => :project_id
+    :caption => :label_menu_loader, :after => :new_issue, :param => :project_id
 
   # MS Project used YYYY-MM-DDTHH:MM:SS format. There no support of time zones, so time will be in UTC
   ActiveSupport::CoreExtensions::Time::Conversions::DATE_FORMATS.merge!(

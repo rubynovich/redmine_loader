@@ -6,13 +6,13 @@
 # Feb 2009 (SJS): Hacked into plugin for redmine #
 ########################################################################
 
-class TaskImport
-  @tasks = []
-  @project_id = nil
-  @new_categories = []
+#class TaskImport
+#  @tasks = []
+#  @project_id = nil
+#  @new_categories = []
 
-  attr_accessor( :tasks, :project_id, :new_categories )
-end
+#  attr_accessor( :tasks, :project_id, :new_categories )
+#end
 
 
 
@@ -176,28 +176,30 @@ class LoaderController < ApplicationController
       # keep track of the outlineNumbers to set the parent_id
       outlineNumberToIssueIDMap = {}
 
+      imported = 0
+
       # Right, good to go! Do the import.
       begin
         Issue.transaction do
-          to_import.sort_by(&:level).each do | source_issue |
+          to_import.sort_by{ |s| s.outlinenumber.split('.').map(&:to_i) }.each do | source_issue |
 
             # We comment those lines becouse they are not necesary now.
             # Add the category entry if necessary
             #category_entry = IssueCategory.find :first, :conditions => { :project_id => @project.id, :name => source_issue.category }
-            logger.debug "DEBUG: Issue to be imported: #{source_issue.inspect}"
+            logger.error "DEBUG: Issue to be imported: #{source_issue.inspect}"
             if source_issue.category.present?
-              logger.debug "DEBUG: Search category id by name: #{source_issue.category}"
+              logger.error "DEBUG: Search category id by name: #{source_issue.category}"
               category_entry = IssueCategory.find_by_project_id_and_name(@project.id, source_issue.category)
-              logger.debug "DEBUG: Category found: #{category_entry.inspect}"
+              logger.error "DEBUG: Category found: #{category_entry.inspect}"
             else
               category_entry = nil
             end
 
             if source_issue.tracker_id.present?
-               logger.debug "DEBUG: Search tracker id by name: #{source_issue.tracker_name}"
+               logger.error "DEBUG: Search tracker id by name: #{source_issue.tracker_name}"
 #               final_tracker = Tracker.find(:first, :conditions => [ "name = ?", source_issue.tracker_name])
                final_tracker = Tracker.find_by_id(source_issue.tracker_id)
-               logger.debug "DEBUG: Tracker found: #{category_entry.inspect}"
+               logger.error "DEBUG: Tracker found: #{category_entry.inspect}"
             else
               final_tracker = default_tracker
             end
@@ -206,9 +208,8 @@ class LoaderController < ApplicationController
             if (source_issue.milestone.to_i == 0)
               destination_issue = Issue.find_by_project_id_and_uid(@project.id, source_issue.uid) || Issue.new
               destination_issue.tracker_id = final_tracker.id
-              destination_issue.parent_issue_id = Issue.find_by_id(uidToIssueIdMap[source_issue.parent_uid]).try(:id)
               destination_issue.uid = source_issue.uid.to_i
-              destination_issue.category_id = category_entry.id if category_entry.present?
+              destination_issue.category_id = category_entry.try(:id)
               destination_issue.subject = source_issue.title.slice(0, 255) # Max length of this field is 255
               destination_issue.estimated_hours = source_issue.duration
               destination_issue.project_id = @project.id
@@ -216,51 +217,50 @@ class LoaderController < ApplicationController
               destination_issue.lock_version = 0
               destination_issue.done_ratio = source_issue.percentcomplete
               destination_issue.start_date = source_issue.start
-              destination_issue.due_date = source_issue.finish unless source_issue.finish.nil?
-              destination_issue.due_date = (Date.parse(source_issue.start, false) + ((source_issue.duration.to_f/40.0)*7.0).to_i).to_s unless destination_issue.due_date != nil
-              destination_issue.description = source_issue.notes unless source_issue.notes == nil
+              destination_issue.due_date = source_issue.finish || destination_issue.start_date + ((source_issue.duration.to_f/40.0)*7.0).to_i
+              destination_issue.description = source_issue.notes
 
-              logger.debug "DEBUG: Assigned_to field: #{source_issue.assigned_to}"
-              if ( assigned_to = User.find_by_id(source_issue.assigned_to) )
-                destination_issue.assigned_to = assigned_to
-              end
-              destination_issue.save! unless destination_issue.nil?
+#              logger.error "DEBUG: Assigned_to field: #{source_issue.assigned_to}"
+              destination_issue.assigned_to = User.find_by_id(source_issue.assigned_to)
+              imported += 1 if destination_issue.save
 
-              logger.debug "DEBUG: Issue #{destination_issue.description} imported"
+              logger.error "DEBUG: Issue imported: #{destination_issue.inspect}"
+#              logger.error "DEBUG: Issue #{destination_issue.description} imported"
               # Now that we know this issue's Redmine issue ID, save it off for later
               uidToIssueIdMap[ source_issue.uid ] = destination_issue.id
               #Save the Issue's ID with the outlineNumber as an index, to set the parent_id later
               outlineNumberToIssueIDMap[ source_issue.outlinenumber ] = destination_issue.id
             else
               #If the issue is a milestone we save it as a Redmine Version
-              version_record = Version.find_by_project_id_and_id(@project.id, source_issue.uid)|| Version.new
+              version_record = Version.find_by_project_id_and_uid(@project.id, source_issue.uid) || Version.new
               version_record.name = source_issue.title.slice(0, 59)#maximum is 60 characters
-              version_record.description = source_issue.notes unless source_issue.notes == nil
+              version_record.uid = source_issue.uid.to_i
+              version_record.description = source_issue.notes if source_issue.notes.present?
               version_record.effective_date = source_issue.start
               version_record.project_id = @project.id
-              version_record.save! unless version_record.nil?
+              imported += 1 if version_record.save
               # Store the version_record.id  to assign the issues to the version later
               uidToVersionIdMap[ source_issue.uid ] = version_record.id
             end
           end
 
-          flash[ :notice ] = "#{ to_import.length } #{ to_import.length == 1 ? 'task' : 'tasks' } imported successfully."
+          flash[ :notice ] = "#{ imported } #{ to_import.length == 1 ? 'task' : 'tasks' } imported successfully."
         end
 
-        # Set the parent_id. We use the outnum of the issue (the outlineNumber without the last .#).
-        # This outnum is the same as the parent's outlineNumber, so we can use it as the index of the
-        # outlineNumberToIssueIDMap to get the parent's ID
+#        # Set the parent_id. We use the outnum of the issue (the outlineNumber without the last .#).
+#        # This outnum is the same as the parent's outlineNumber, so we can use it as the index of the
+#        # outlineNumberToIssueIDMap to get the parent's ID
         Issue.transaction do
           to_import.each do | source_issue |
-            destination_issue = Issue.find(:first, :conditions => ["project_id =? AND id=?", @project.id, uidToIssueIdMap[ source_issue.uid]])
-            destination_issue.parent_issue_id = outlineNumberToIssueIDMap[source_issue.outnum] unless destination_issue.nil?
-            destination_issue.save! unless destination_issue.nil?
+            destination_issue = Issue.find_by_project_id_and_uid(@project.id, source_issue.uid)
+            destination_issue.parent_issue_id = Issue.find_by_project_id_and_uid(@project.id, source_issue.parent_uid).try(:id)
+            destination_issue.save!
          end
         end
 
         # Delete all the relations off the issues that we are going to import. If they continue existing we are going to create them. If not they must be deleted.
         to_import.each do | source_issue |
-          IssueRelation.delete_all(["issue_to_id =?", source_issue.uid])
+          IssueRelation.delete_all(["issue_to_id =?", uidToIssueIdMap[source_issue.uid]])
         end
 
         # Handle all the dependencies being careful if the parent doesn't exist
@@ -277,11 +277,11 @@ class LoaderController < ApplicationController
                     i.issue_to_id = uidToIssueIdMap[source_issue.uid]
                     i.relation_type = 'precedes'
                     # Set the delay of the relation if it exists.
-                    if source_issue.delays[delaynumber] != nil
-                      if source_issue.delays[delaynumber].to_i > 0
+                    if source_issue.delays[delaynumber].present?
+#                      if source_issue.delays[delaynumber].to_i > 0
                         i.delay = (source_issue.delays[delaynumber].to_i)/4800
                         delaynumber = delaynumber + 1
-                      end
+#                      end
                     end
                   end
                   relation_record.save!
@@ -302,153 +302,23 @@ class LoaderController < ApplicationController
 
         rescue => error
         flash[ :error ] = "Unable to import tasks: #{ error }"
-        logger.debug "DEBUG: Unable to import tasks: #{ error }"
+        logger.error "DEBUG: Unable to import tasks: #{ error }"
         render( { :action => :new } )
 
       end
     end
   end
 
-  def export
-    find_project()
-    xml, name = generate_xml
-    hijack_response(xml, name)
-  end
-
   private
-
 
   def find_project
     # @project variable must be set before calling the authorize filter
     @project = Project.find(params[:project_id])
   end
 
-
-  def generate_xml
-    xml = Builder::XmlMarkup.new( :target => out_string = "", :indent => 2 )
-    issues = []
-    xml.Project do
-       xml.Tasks do
-         xml.Task do
-           xml.UID("0")
-           xml.ID("0")
-           xml.Name(@project.name)
-           xml.Type("1")
-           xml.CreateDate(@project.created_on.to_s(:ms_xml))
-           xml.ConstraintType("0")
-         end
-         id = 0
-         issues =@project.issues.find(:all, :order=>"id")
-         issues.each do |issue|
-           xml.Task do
-             id += 1
-             xml.UID(issue.id)
-             xml.ID(id)
-             xml.Name(issue.subject)
-             xml.Notes(issue.description)
-             xml.CreateDate(issue.created_on.to_s(:ms_xml))
-             xml.Priority(issue.priority_id)
-             xml.Start(issue.start_date.to_time.to_s(:ms_xml))
-             xml.Finish(issue.due_date.to_time.to_s(:ms_xml)) if issue.due_date
-             xml.FixedCostAccrual("3")
-             xml.ConstraintType("4")
-             xml.ConstraintDate(issue.start_date.to_time.to_s(:ms_xml))
-             #If the issue is parent: summary, critical and rollup = 1, if not = 0
-             if is_parent(issue.id) == 1
-               xml.Summary("1")
-               xml.Critical("1")
-               xml.Rollup("1")
-               xml.Type("1")
-             else
-               xml.Summary("0")
-               xml.Critical("0")
-               xml.Rollup("0")
-               xml.Type("0")
-             end
-             xml.PredecessorLink do
-               IssueRelation.find(:all, :include => [:issue_from, :issue_to], :conditions => ["issue_to_id =? AND relation_type = 'precedes'", issue.id]).select do |ir|
-                 xml.PredecessorUID(ir.issue_from_id)
-               end
-             end
-             #If it is a main task => WBS = id, outlineNumber = id, outlinelevel = 1
-             #If not, we have to get the outlinelevel
-             outlinelevel = 1
-             while (issue.parent_id != nil)
-               issue = @project.issues.find(:first, :conditions => ["id = ?", issue.parent_id])
-               outlinelevel +=1
-             end
-             xml.WBS(id)
-             xml.OutlineNumber(id)
-             xml.OutlineLevel(outlinelevel)
-           end
-         end
-         versions =@project.versions.find(:all, :order=>"id")
-         versions.each do |version|
-           xml.Task do
-             id += 1
-             xml.UID(version.id)
-             xml.ID(id)
-             xml.Name(version.name)
-             xml.Notes(version.description)
-             xml.CreateDate(version.created_on.to_s(:ms_xml))
-             xml.Start(version.effective_date.to_time.to_s(:ms_xml))
-             xml.Finish(version.effective_date.to_time.to_s(:ms_xml))
-             xml.FixedCostAccrual("3")
-             xml.ConstraintType("4")
-             xml.ConstraintDate(version.effective_date.to_time.to_s(:ms_xml))
-             issues =@project.issues.find(:all, :conditions =>["fixed_version_id=?",version.id] )
-             issues.each do |issue|
-               xml.PredecessorLink do
-                 xml.PredecessorUID(issue.id)
-               end
-             end
-           end
-         end
-       end
-       xml.Resources do
-         xml.Resource do
-           xml.UID("0")
-           xml.ID("0")
-           xml.Type("1")
-           xml.IsNull("0")
-         end
-         resources=@project.members.find(:all)
-         resources.each do |resource|
-           xml.Resource do
-             xml.UID(resource.user_id)
-             xml.ID(resource.id)
-             xml.Name(resource.name)
-             xml.Type("1")
-             xml.IsNull("0")
-           end
-         end
-       end
-       # We do not assign the issue to any resource, just set the done_ratio
-       xml.Assignments do
-         @project.issues.each do |issue|
-           xml.Assignment do
-             xml.UID(issue.id)
-             xml.TaskUID(issue.id)
-             xml.ResourceUID("-65535")
-             xml.PercentWorkComplete(issue.done_ratio)
-           end
-        end
-      end
-    end
-
-    #To save the created xml with the name of the project
-    projectname = @project.name + ".xml"
-    return out_string, projectname
-  end
-
-  def hijack_response(out_data, projectname)
-    send_data( out_data, :type => "text/xml",
-    :filename => projectname )
-  end
-
   # Look if the issue is parent of another issue or not
   def is_parent(issue_id)
-    return Issue.find(:first, :conditions =>["parent_id=?", issue_id])
+    Issue.find(:first, :conditions =>["parent_id=?", issue_id])
   end
 
   # Obtain a task list from the given parsed XML data (a REXML document).
@@ -458,7 +328,7 @@ class LoaderController < ApplicationController
     # Extract details of every task into a flat array
     tasks = []
 
-    logger.debug "DEBUG: BEGIN get_tasks_from_xml"
+    logger.error "DEBUG: BEGIN get_tasks_from_xml"
 
     tracker_alias = Setting.plugin_redmine_loader['tracker_alias']
     tracker_field_id = nil;
@@ -469,17 +339,17 @@ class LoaderController < ApplicationController
 
     doc.each_element( 'Project/Tasks/Task' ) do | task |
       begin
-        logger.debug "Project/Tasks/Task found"
+        logger.error "Project/Tasks/Task found"
         struct = OpenStruct.new
         struct.level = task.get_elements( 'OutlineLevel' )[0].text.to_i if task.get_elements('OutlineLevel')[0]
         struct.outlinenumber = task.get_elements('OutlineNumber')[0].text.strip if task.get_elements('OutlineNumber')[0]
 
-        auxString = struct.outlinenumber
-
-        index = auxString.rindex('.')
-        if index
-          index -= 1
-          struct.outnum = auxString[0..index]
+        if auxString = struct.outlinenumber
+          index = auxString.rindex('.')
+          if index
+            index -= 1
+            struct.outnum = auxString[0..index]
+          end
         end
 
         struct.tid = task.get_elements('ID')[0].text.to_i if task.get_elements('ID')[0]
@@ -514,7 +384,7 @@ class LoaderController < ApplicationController
       rescue => error
         # Ignore errors; they tend to indicate malformed tasks, or at least,
         # XML file task entries that we do not understand.
-        logger.debug "DEBUG: Unrecovered error getting tasks: #{error}"
+        logger.error "DEBUG: Unrecovered error getting tasks: #{error}"
       end
     end
 
@@ -605,15 +475,15 @@ class LoaderController < ApplicationController
 
     set_assignment_to_task(doc,uid_tasks)
 
-    logger.debug "DEBUG: Real tasks: #{real_tasks.inspect}"
-    logger.debug "DEBUG: Tasks: #{tasks.inspect}"
+    logger.error "DEBUG: Real tasks: #{real_tasks.inspect}"
+    logger.error "DEBUG: Tasks: #{tasks.inspect}"
 
     real_tasks = tasks if real_tasks.empty?
 
     real_tasks = real_tasks.uniq unless real_tasks.nil?
     all_categories = all_categories.uniq.sort
 
-    logger.debug "DEBUG: END get_tasks_from_xml"
+    logger.error "DEBUG: END get_tasks_from_xml"
 
     return real_tasks, all_categories
   end

@@ -1,4 +1,4 @@
-%h1= l(:import_tasks)
+%h1= l_or_humanize(:import_tasks, :prefix => :label_)
 :javascript
   function check_box_toggle_field(id, className, prefix, suffix){
     if (!$$)
