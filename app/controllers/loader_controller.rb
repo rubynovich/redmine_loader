@@ -333,9 +333,9 @@ class LoaderController < ApplicationController
     tracker_alias = Setting.plugin_redmine_loader['tracker_alias']
     tracker_field_id = nil;
 
-    doc.each_element( "Project/ExtendedAttributes/ExtendedAttribute[Alias='#{tracker_alias}']/FieldID") do | ext_attr |
-      tracker_field_id = ext_attr.text.to_i;
-    end
+#    doc.each_element( "Project/ExtendedAttributes/ExtendedAttribute[Alias='#{tracker_alias}']/FieldID") do | ext_attr |
+#      tracker_field_id = ext_attr.text.to_i;
+#    end
 
     doc.each_element( 'Project/Tasks/Task' ) do | task |
       begin
@@ -369,7 +369,7 @@ class LoaderController < ApplicationController
         struct.milestone = (s1 == s2) ? 1 : 0
 
         struct.percentcomplete = task.get_elements( 'PercentComplete')[0].text.to_i
-        struct.notes = task.get_elements( 'Notes' )[ 0 ].text.strip unless task.get_elements( 'Notes' )[ 0 ].nil?
+        struct.notes = task.get_elements( 'Notes' )[ 0 ].text.strip if task.get_elements( 'Notes' )[0]
         struct.predecessors = []
         struct.delays = []
         task.each_element( 'PredecessorLink' ) do | predecessor |
@@ -416,7 +416,7 @@ class LoaderController < ApplicationController
       #  all_categories.push(category) # Keep track of all categories so we know which ones might need to be added
         #tasks[ index ] = "Prueba"
       if task.level == 0
-        category = task.title.strip.gsub(/:$/u, '') unless task.title.nil? # Kill any trailing :'s which are common in some project files
+        category = task.title.strip.gsub(/:$/, '') if task.title.present? # Kill any trailing :'s which are common in some project files
         all_categories.push(category) # Keep track of all categories so we know which ones might need to be added
         tasks[ index ] = nil
       else
@@ -480,7 +480,7 @@ class LoaderController < ApplicationController
 
     real_tasks = tasks if real_tasks.empty?
 
-    real_tasks = real_tasks.uniq unless real_tasks.nil?
+    real_tasks = real_tasks.uniq if real_tasks.present?
     all_categories = all_categories.uniq.sort
 
     logger.error "DEBUG: END get_tasks_from_xml"
@@ -497,7 +497,7 @@ class LoaderController < ApplicationController
 
     doc.each_element( 'Project/Assignments/Assignment' ) do | as |
       task_uid = as.get_elements( 'TaskUID' ).first.text.to_i
-      task = uid_tasks[ task_uid ] unless task_uid.nil?
+      task = uid_tasks[ task_uid ] if task_uid.present?
       next if ( task.nil? )
 
       resource_id = as.get_elements('ResourceUID').first.text.to_i
