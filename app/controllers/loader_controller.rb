@@ -73,7 +73,7 @@ class LoaderController < ApplicationController
 
 #        xmlfile = Zlib::GzipReader.new( xmlfile ) if ( byte != '<'[ 0 ] )
 #        xmldoc = REXML::Document.new( xmlfile.read )
-        @import.tasks, @import.new_categories = get_tasks_from_xml( REXML::Document.new( xmlfile.read ) )
+        @import.tasks, @import.new_categories = get_tasks_from_xml( REXML::Document.new( xmlfile.read.force_encoding "UTF-8" ) )
 
         if @import.tasks.blank?
           flash[ :error ] = 'No usable tasks were found in that file'
