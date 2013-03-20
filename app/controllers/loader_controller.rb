@@ -333,9 +333,9 @@ class LoaderController < ApplicationController
     tracker_alias = Setting.plugin_redmine_loader['tracker_alias']
     tracker_field_id = nil;
 
-#    doc.each_element( "Project/ExtendedAttributes/ExtendedAttribute[Alias='#{tracker_alias}']/FieldID") do | ext_attr |
-#      tracker_field_id = ext_attr.text.to_i;
-#    end
+    doc.each_element( "Project/ExtendedAttributes/ExtendedAttribute[Alias='#{tracker_alias}']/FieldID".force_encoding "UTF-8") do | ext_attr |
+      tracker_field_id = ext_attr.text.to_i;
+    end
 
     doc.each_element( 'Project/Tasks/Task' ) do | task |
       begin
