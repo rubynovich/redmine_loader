@@ -73,7 +73,7 @@ class LoaderController < ApplicationController
 
 #        xmlfile = Zlib::GzipReader.new( xmlfile ) if ( byte != '<'[ 0 ] )
 #        xmldoc = REXML::Document.new( xmlfile.read )
-        @import.tasks, @import.new_categories = get_tasks_from_xml( REXML::Document.new( xmlfile.read.force_encoding "UTF-8" ) )
+        @import.tasks, @import.new_categories = get_tasks_from_xml( REXML::Document.new( xmlfile.read ) )
 
         if @import.tasks.blank?
           flash[ :error ] = 'No usable tasks were found in that file'
@@ -416,7 +416,7 @@ class LoaderController < ApplicationController
       #  all_categories.push(category) # Keep track of all categories so we know which ones might need to be added
         #tasks[ index ] = "Prueba"
       if task.level == 0
-        category = task.title.strip.gsub(/:$/, '') unless task.title.nil? # Kill any trailing :'s which are common in some project files
+        category = task.title.strip.gsub(/:$/u, '') unless task.title.nil? # Kill any trailing :'s which are common in some project files
         all_categories.push(category) # Keep track of all categories so we know which ones might need to be added
         tasks[ index ] = nil
       else
