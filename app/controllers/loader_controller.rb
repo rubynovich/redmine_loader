@@ -58,7 +58,7 @@ class LoaderController < ApplicationController
     xmlfile = params[ :import ][ :xmlfile ]
     @import = TaskImport.new
 
-    unless ( xmlfile.nil? )
+    if xmlfile.present?
 
       # The user selected a file to upload, so process it
 
@@ -68,12 +68,12 @@ class LoaderController < ApplicationController
         # if that's missing then it's GZip compressed. That's true in the
         # limited case of project files.
 
-        byte = xmlfile.getc()
+#        byte = xmlfile.getc()
         xmlfile.rewind()
 
-        xmlfile = Zlib::GzipReader.new( xmlfile ) if ( byte != '<'[ 0 ] )
-        xmldoc = REXML::Document.new( xmlfile.read() )
-        @import.tasks, @import.new_categories = get_tasks_from_xml( xmldoc )
+#        xmlfile = Zlib::GzipReader.new( xmlfile ) if ( byte != '<'[ 0 ] )
+#        xmldoc = REXML::Document.new( xmlfile.read )
+        @import.tasks, @import.new_categories = get_tasks_from_xml( REXML::Document.new( xmlfile.read ) )
 
         if @import.tasks.blank?
           flash[ :error ] = 'No usable tasks were found in that file'

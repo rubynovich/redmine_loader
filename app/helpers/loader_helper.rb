@@ -37,7 +37,7 @@ module LoaderHelper
       output << "        projects #{ link_to( 'here', '/project/new' ) }."
     end
 
-    return output
+    output.html_safe
   end
 
   # Generate a category selector to which imported tasks will
@@ -82,7 +82,7 @@ module LoaderHelper
 
     output << "</select>"
 
-    return output
+    return output.html_safe
   end
 
   # Generate a user selector to which imported tasks will
@@ -116,7 +116,7 @@ module LoaderHelper
 
     output << "</select>"
 
-    return output
+    return output.html_safe
 
   end
 
@@ -135,6 +135,6 @@ module LoaderHelper
 
     output << "</select>"
 
-    return output
+    return output.html_safe
   end
 end
