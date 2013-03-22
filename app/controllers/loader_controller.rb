@@ -156,7 +156,7 @@ class LoaderController < ApplicationController
       # Tracker
       default_tracker_name = Setting.plugin_redmine_loader['tracker']
       default_tracker = Tracker.find_by_name(default_tracker_name)
-      default_tracker_id = default_tracker.id
+      default_tracker_id = default_tracker.try(:id)
 
       if ( default_tracker_id.nil? )
         flash[ :error ] = 'No valid default Tracker. Please ask your System Administrator to resolve this.'
@@ -332,7 +332,7 @@ class LoaderController < ApplicationController
 
     tracker_alias = Setting.plugin_redmine_loader['tracker_alias']
     tracker_field_id = nil;
-
+    #FIXME Надо проверить как оно работает
     doc.each_element( "Project/ExtendedAttributes/ExtendedAttribute[Alias='#{tracker_alias}']/FieldID".force_encoding "UTF-8") do | ext_attr |
       tracker_field_id = ext_attr.text.to_i;
     end
