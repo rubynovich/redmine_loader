@@ -515,7 +515,7 @@ class LoaderController < ApplicationController
     resource_by_user = {}
 
     resources.each do |uid,name|
-      user_found = users_list.find_all { |user| user.login == name }
+      user_found = users_list.select { |user| user.name == name }
       next if (user_found.first.nil?)
       resource_by_user[uid] = user_found.first.id
     end
