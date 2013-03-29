@@ -154,7 +154,7 @@ class LoaderController < ApplicationController
       # Get defaults to use for all tasks - sure there is a nicer ruby way, but this works
       #
       # Tracker
-      default_tracker_name = Setting.plugin_redmine_loader['tracker'].force_encoding "UTF-8"
+      default_tracker_name = Setting.plugin_redmine_loader['tracker']
       default_tracker = Tracker.find_by_name(default_tracker_name)
       default_tracker_id = default_tracker.try(:id)
 
@@ -331,7 +331,7 @@ class LoaderController < ApplicationController
 
     logger.error "DEBUG: BEGIN get_tasks_from_xml"
 
-    tracker_alias = Setting.plugin_redmine_loader['tracker_alias'].force_encoding "UTF-8"
+    tracker_alias = Setting.plugin_redmine_loader['tracker_alias']
     tracker_field_id = nil;
     #FIXME Надо проверить как оно работает
     doc.each_element( "Project/ExtendedAttributes/ExtendedAttribute[Alias='#{tracker_alias}']/FieldID".force_encoding "UTF-8") do | ext_attr |
