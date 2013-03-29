@@ -81,14 +81,14 @@ class LoaderController < ApplicationController
           flash[ :notice ] = 'Tasks read successfully. Please choose items to import.'
         end
 
-      rescue => error
+#      rescue => error
 
-        # REXML errors can be huge, including a full backtrace. It can cause
-        # session cookie overflow and we don't want the user to see it. Cut
-        # the message off at the first newline.
+#        # REXML errors can be huge, including a full backtrace. It can cause
+#        # session cookie overflow and we don't want the user to see it. Cut
+#        # the message off at the first newline.
 
-        lines = error.message.split("\n")
-        flash[ :error ] = "Failed to read file: #{ lines[ 0 ] }"
+#        lines = error.message.split("\n")
+#        flash[ :error ] = "Failed to read file: #{ lines[ 0 ] }"
       end
 
       render :action => :new
@@ -154,7 +154,7 @@ class LoaderController < ApplicationController
       # Get defaults to use for all tasks - sure there is a nicer ruby way, but this works
       #
       # Tracker
-      default_tracker_name = Setting.plugin_redmine_loader['tracker']
+      default_tracker_name = Setting.plugin_redmine_loader['tracker'].force_encoding "UTF-8"
       default_tracker = Tracker.find_by_name(default_tracker_name)
       default_tracker_id = default_tracker.try(:id)
 
@@ -247,14 +247,15 @@ class LoaderController < ApplicationController
           flash[ :notice ] = "#{ imported } #{ to_import.length == 1 ? 'task' : 'tasks' } imported successfully."
         end
 
-#        # Set the parent_id. We use the outnum of the issue (the outlineNumber without the last .#).
-#        # This outnum is the same as the parent's outlineNumber, so we can use it as the index of the
-#        # outlineNumberToIssueIDMap to get the parent's ID
+        # Set the parent_id. We use the outnum of the issue (the outlineNumber without the last .#).
+        # This outnum is the same as the parent's outlineNumber, so we can use it as the index of the
+        # outlineNumberToIssueIDMap to get the parent's ID
         Issue.transaction do
           to_import.each do | source_issue |
-            destination_issue = Issue.find_by_project_id_and_uid(@project.id, source_issue.uid)
-            destination_issue.parent_issue_id = Issue.find_by_project_id_and_uid(@project.id, source_issue.parent_uid).try(:id)
-            destination_issue.save!
+            if destination_issue = Issue.find_by_project_id_and_uid(@project.id, source_issue.uid)
+              destination_issue.parent_issue_id = Issue.find_by_project_id_and_uid(@project.id, source_issue.parent_uid).try(:id)
+              destination_issue.save(:validate => false)
+            end
          end
         end
 
@@ -284,12 +285,12 @@ class LoaderController < ApplicationController
 #                      end
                     end
                   end
-                  relation_record.save!
+                  logger.error "DEBUG: #{relation_record.inspect}" unless relation_record.save(:validation => false)
                 else
                   # If the issue is a milestone we have to assign the predecessor to the version
                   destination_issue = Issue.find(:first, :conditions => ["project_id =? AND id=?", @project.id, uidToIssueIdMap[parent_uid]])
                   destination_issue.fixed_version_id = uidToVersionIdMap[source_issue.uid]
-                  destination_issue.save!
+                  logger.error "DEBUG: #{destination_issue.inspect}" unless destination_issue.save(:validation => false)
                 end
               end
             end
@@ -300,10 +301,10 @@ class LoaderController < ApplicationController
         redirect_to( "/projects/#{@project.identifier}/issues" )
 
 
-        rescue => error
-        flash[ :error ] = "Unable to import tasks: #{ error }"
-        logger.error "DEBUG: Unable to import tasks: #{ error }"
-        render( { :action => :new } )
+#        rescue => error
+#        flash[ :error ] = "Unable to import tasks: #{ error }"
+#        logger.error "DEBUG: Unable to import tasks: #{ error }"
+#        render( { :action => :new } )
 
       end
     end
@@ -330,7 +331,7 @@ class LoaderController < ApplicationController
 
     logger.error "DEBUG: BEGIN get_tasks_from_xml"
 
-    tracker_alias = Setting.plugin_redmine_loader['tracker_alias']
+    tracker_alias = Setting.plugin_redmine_loader['tracker_alias'].force_encoding "UTF-8"
     tracker_field_id = nil;
     #FIXME Надо проверить как оно работает
     doc.each_element( "Project/ExtendedAttributes/ExtendedAttribute[Alias='#{tracker_alias}']/FieldID".force_encoding "UTF-8") do | ext_attr |
@@ -381,10 +382,10 @@ class LoaderController < ApplicationController
 
       tasks.push( struct )
       #rescue
-      rescue => error
-        # Ignore errors; they tend to indicate malformed tasks, or at least,
-        # XML file task entries that we do not understand.
-        logger.error "DEBUG: Unrecovered error getting tasks: #{error}"
+#      rescue => error
+#        # Ignore errors; they tend to indicate malformed tasks, or at least,
+#        # XML file task entries that we do not understand.
+#        logger.error "DEBUG: Unrecovered error getting tasks: #{error}"
       end
     end
 
