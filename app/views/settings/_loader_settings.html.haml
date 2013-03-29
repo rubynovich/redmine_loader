@@ -1,9 +1,9 @@
 - html_title "Exony Project File Loader"
 %p
   %label
-    Tracker for project files
-  = text_field_tag 'settings[tracker]', @settings['tracker']
+    Default Tracker
+  = text_field_tag 'settings[tracker]', @settings['tracker'].force_encoding "UTF-8"
 %p
   %label
-    Alias for Tracker field
-  = text_field_tag 'settings[tracker_alias]', @settings['tracker_alias']
+    Alias Field for Tracker
+  = text_field_tag 'settings[tracker_alias]', @settings['tracker_alias'].force_encoding "UTF-8"
