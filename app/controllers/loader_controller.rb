@@ -331,10 +331,10 @@ class LoaderController < ApplicationController
 
     logger.error "DEBUG: BEGIN get_tasks_from_xml"
 
-    tracker_alias = Setting.plugin_redmine_loader['tracker_alias']
+    tracker_alias = Setting.plugin_redmine_loader['tracker_alias'].force_encoding "UTF-8"
     tracker_field_id = nil;
     #FIXME Надо проверить как оно работает
-    doc.each_element( "Project/ExtendedAttributes/ExtendedAttribute[Alias='#{tracker_alias}']/FieldID".force_encoding "UTF-8") do | ext_attr |
+    doc.each_element( "Project/ExtendedAttributes/ExtendedAttribute[Alias='#{tracker_alias}']/FieldID") do | ext_attr |
       tracker_field_id = ext_attr.text.to_i;
     end
 
