@@ -91,33 +91,24 @@ module LoaderHelper
   # task import view.
 
   def loaderhelp_user_selector( fieldId, project, assigned_to )
-
     # First populate the selection box with all the existing categories from this project
-    memberList = Member.find( :all, :conditions => { :project_id => project } )
-
-    userList = []
-
-    memberList.each do | current_member |
-      userList.push( User.find( :first, :conditions => { :id => current_member.user_id } ) )
-    end
+    userList = Member.where(:project_id => project).all.map(&:user).sort_by(&:name).compact
 
     output = "<select id=\"" + fieldId + "\" name=\"" + fieldId + "\">"
 
     # Empty entry
-#    output << "<option value=\"\"></option>"
+    output << "<option value=\"\"></option>"
 
     # Add all the users
-    userList = userList.sort { |a,b| a.firstname + a.lastname <=> b.firstname + b.lastname }
     userList.each do | user_entry |
       output << "<option value=\"" + user_entry.id.to_s + "\""
       output << " selected='selected' " if assigned_to == user_entry.id
-      output << " >" + user_entry.firstname + " " + user_entry.lastname + "</option>"
+      output << " >" + user_entry.name + "</option>"
     end
 
     output << "</select>"
 
     return output.html_safe
-
   end
 
   def loaderhelp_tracker_selector( fieldId, project, tracker_name )
