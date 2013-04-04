@@ -92,7 +92,7 @@ module LoaderHelper
 
   def loaderhelp_user_selector( fieldId, project, assigned_to )
     # First populate the selection box with all the existing categories from this project
-    userList = Member.where(:project_id => project).all.map(&:user).sort_by(&:name).compact
+    userList = Member.where(:project_id => project).all.map(&:user).compact.sort_by(&:name)
 
     output = "<select id=\"" + fieldId + "\" name=\"" + fieldId + "\">"
 
