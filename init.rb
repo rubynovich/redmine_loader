@@ -1,16 +1,14 @@
 require 'redmine'
 
 Redmine::Plugin.register :redmine_loader do
-
-  name 'Basic project file loader for Redmine'
-
-  author 'Simon Stearn largely hacking Andrew Hodgkinsons trackrecord code (sorry Andrew)'
-
-  description 'Basic project file loader'
-
+  name 'MS Project file loader'
+  author 'Roman Shipiev'
+  description 'Basic MS Project file loader (XML)'
   version '0.0.12'
-
   requires_redmine :version_or_higher => '0.9.2'
+  url 'https://bitbucket.org/rubynovich/redmine_loader'
+  author_url 'http://roman.shipiev.me'
+
 
   # Commented out because it refused to work in development mode
   default_tracker_name = 'Features' #Tracker.find_by_id( 1 ).name
@@ -24,28 +22,6 @@ Redmine::Plugin.register :redmine_loader do
 
   menu :project_menu, :loader, { :controller => 'loader', :action => 'new' },
     :caption => :label_menu_loader, :after => :new_issue, :param => :project_id
-
-#  if Rails::VERSION::MAJOR < 3
-#    # MS Project used YYYY-MM-DDTHH:MM:SS format. There no support of time zones, so time will be in UTC
-#    ActiveSupport::CoreExtensions::Time::Conversions::DATE_FORMATS.merge!(
-#      :ms_xml => lambda{ |time| time.utc.strftime("%Y-%m-%dT%H:%M:%S") }
-#    )
-
-#    # MS Project used YYYY-MM-DDTHH:MM:SS format. There no support of time zones, so time will be in UTC
-#    ActiveSupport::CoreExtensions::Time::Conversions::DATE_FORMATS.merge!(
-#      :ms_xml => lambda{ |time| time.utc.strftime("%Y-%m-%dT%H:%M:%S") }
-#    )
-#  else
-#    # MS Project used YYYY-MM-DDTHH:MM:SS format. There no support of time zones, so time will be in UTC
-#    Date::DATE_FORMATS.merge!(
-#      :ms_xml => lambda{ |time| time.utc.strftime("%Y-%m-%dT%H:%M:%S") }
-#    )
-
-#    # MS Project used YYYY-MM-DDTHH:MM:SS format. There no support of time zones, so time will be in UTC
-#    Date::DATE_FORMATS.merge!(
-#      :ms_xml => lambda{ |time| time.utc.strftime("%Y-%m-%dT%H:%M:%S") }
-#    )
-#  end
 end
 
 if Rails::VERSION::MAJOR < 3
