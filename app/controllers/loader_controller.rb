@@ -288,9 +288,11 @@ class LoaderController < ApplicationController
                   logger.error "DEBUG: #{relation_record.inspect}" unless relation_record.save(:validation => false)
                 else
                   # If the issue is a milestone we have to assign the predecessor to the version
-                  destination_issue = Issue.find(:first, :conditions => ["project_id =? AND id=?", @project.id, uidToIssueIdMap[parent_uid]])
-                  destination_issue.fixed_version_id = uidToVersionIdMap[source_issue.uid]
-                  logger.error "DEBUG: #{destination_issue.inspect}" unless destination_issue.save(:validation => false)
+
+                  if destination_issue = Issue.find(:first, :conditions => ["project_id =? AND id=?", @project.id, uidToIssueIdMap[parent_uid]])
+                    destination_issue.fixed_version_id = uidToVersionIdMap[source_issue.uid]
+                    logger.error "DEBUG: #{destination_issue.inspect}" unless destination_issue.save(:validation => false)
+                  end
                 end
               end
             end
