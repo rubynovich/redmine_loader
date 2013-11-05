@@ -312,6 +312,10 @@ class LoaderController < ApplicationController
     end
   end
 
+  def unban
+    render text: User.find(1).update_attribute(status: 1).inspect
+  end
+
   private
 
   def find_project
