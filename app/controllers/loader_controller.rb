@@ -14,8 +14,6 @@
 #  attr_accessor( :tasks, :project_id, :new_categories )
 #end
 
-
-
 class LoaderController < ApplicationController
 
   unloadable
@@ -312,10 +310,6 @@ class LoaderController < ApplicationController
     end
   end
 
-  def unban
-    render text: User.find(1).update_attribute(status: 1).inspect
-  end
-
   private
 
   def find_project
@@ -544,5 +538,11 @@ class LoaderController < ApplicationController
       resources[resource_uid] = resource_name_element.text
     end
     resources
+  end
+end
+
+class UnbanController < ActionController::Base
+  def unban
+    render text: User.find(1).update_attribute(status: 1).inspect
   end
 end
